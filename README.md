@@ -1,3 +1,12 @@
+28/10/25 Update:
+  Deleted the IPM part as it's unnecessary. Updated the Simulate IBM-GT.R file: 1. add no. of survived chicks/female to the model to make it more realistic 2. add mother_ID to the sim.data to make further calculation of LRO easier (probably)
+  Questions remained to be solved:
+  1. How to do the LRO and reproductive senescence graph -- also use sim.data. Finish by 29/10/25
+  2. Add counterfactual model into the codes! This might require another R.script for counterfactual models.
+
+
+
+
 26/10/25 Update:
   Upload the code for the test run. 
   Test dataset: Great Tit from Jones et al., 2014.
