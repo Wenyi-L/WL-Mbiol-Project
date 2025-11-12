@@ -1,3 +1,11 @@
+12/11/2025 Update:
+  Change the method from IBM simulation to Markov Chain with Reward.
+  Fix the graph problem so it is more closed to the analytical results of mean/variance/skewness of lifespan/LRO.
+  Questions remained to be solved:
+  1. How to combine the results of different species together and to interpret that result?
+
+
+
 28/10/25 Update:
   Deleted the IPM part as it's unnecessary. Updated the Simulate IBM-GT.R file: 1. add no. of survived chicks/female to the model to make it more realistic 2. add mother_ID to the sim.data to make further calculation of LRO easier (probably)
   Questions remained to be solved:
