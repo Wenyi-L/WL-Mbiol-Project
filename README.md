@@ -1,3 +1,17 @@
+19/02/2026 Update:
+-Change the plotting method of LRO to analytical
+-add analyses
+  - interactions between actuarial senescence and reproductive senescence
+  - sensitivity check for change the definition of maturity age
+  - Median reproduction age VS peak fertility age
+- Questions remained to be solved:
+  - How to obtain the median age of reproduction from fert.mx
+  - Phylogenetic analysis
+  - How to quantify senescence strength
+
+
+
+
 12/11/2025 Update:
   Change the method from IBM simulation to Markov Chain with Reward.
   Fix the graph problem so it is more closed to the analytical results of mean/variance/skewness of lifespan/LRO.
