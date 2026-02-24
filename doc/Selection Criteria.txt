@@ -1,0 +1,8 @@
+Only include wild population：
+so remove C.elegans(done), Daphnia longispina(done), Macrotrachela sp.(done)，Poecilia reticulata(done)，Pediculus humanus(done)，Drosophila melanogaster(done)，Ceratitis capitata(done)，Hydra magnipapillata(done)，Pagurus longicarpus(done)
+
+
+
+Nx only represents population size instead of individuals in each cohort， cannot access original data so temporary moved from current analysis
+?Need to contact correspondence authors?
+Apus melba(done), Ficedula albicollis(done), Fulmarus glacialoides(done), 
