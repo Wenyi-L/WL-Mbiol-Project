@@ -1,0 +1,63 @@
+Many come from Jones et al. (2008, Ecology Letters) which says: 
+
+  The way recruitment was estimated varied among populations. Where possible it was defined 
+  as the number of offspring produced between the census at time t and the census at time t+1 
+  that were still alive at the census at time t+1. (<-------- this would be f_x)  
+  Where this information (number alive at time t+1) was not available, we used the number of 
+  weaned (mammals), or fledged (birds), offspring.  (<-------- in between m_x and f_x). 
+
+In the list below, anything from Jones et al. 2008 is characterized as f_x.   
+
+Humans, Japan and Sweden: not clear, the cited data base gives both raw births and "fertility" (more like f_x). 
+Killer whale (Orcinus orca): based on calving rate: m_x. 
+Bali mynah, Leucopsar Rothschildi: zoo population, m_x.  
+Trinidad guppy, Poecilia reticulata: "from underlying data", unknown.  
+Human hunter-gatherers: unknown (original source is a book). 
+Southern fulmar: from Jones et al. (2008), f_x. 
+Water flea, Daphnia longispina: unknown, data not in original publication 
+African lion: number of live offspring, m_x. 
+Yellow baboon, Papio cynocephalus: book chapter; description seems to be m_x. 
+Bdelloid rotifer (Macrotrachela): "from the underlying data", unknown. 
+Roe deer: from Jones et al. (2008), f_x. 
+Red deer: from Jones et al. (2008), f_x.
+Nematode worms, C. elegans: based on daily reproduction. Probably m_x? 
+Human louse, Pediculus humanus: m_x.
+Chimpanzee, Pan troglodytes: based on births, m_x
+Drosophila: eggs/female, m_x. 
+Chamois (Rupicapra rupicapra) based on presence of fetus, m_x.
+Medfly (Ceratitis capitata) "used the original dataset", unknown
+Alpine swift (Apus melba): from Jones et al. (2008), f_x. 
+Soay sheep (Ovis aries): from Jones et al. (2008), f_x. 
+Mute swan (Cygnus olor): from Jones et al. (2008), f_x. 
+Field vole (microtus oeconomus): litter sizes, m_x. 
+Cryptantha flava: from original data, unknown. 
+Freshwater crocodile (Crocodylus johnsoni): clutch size and nest loss, so in between m_x and f_x. 
+Yellow-bellied marmot (Marmota flaviventris): from Jones et al. (2008), f_x. 
+Hypericum cumulicola: "we obtained a life table", unknown. 
+Sparrowhawk (Accipiter nisus): young per year, so close to f_x. 
+Common lizard (Lacerta vivipara): litter size, m_x. 
+Borderea: both cited papers define fecundity as f_x, so probably f_x.
+Collared flycatcher: from Jones et al. (2008), f_x. 
+Great tit (Parus major): from Jones et al. (2008), f_x. 
+Hydra magnipapillata: budding events, m_x. 
+Desert tortoise (Gopherus agassizii), m_x (from original publication; Gary White is an author). 
+
+Age from stage (mostly plants): all f_x (see eqn. (5) and R code in Supplement to Jones et al. 2014)  
+Scots pine (Pinus sylvestris) 
+Agave (Agave marmorata)
+Geonoma orbignyana 
+Dwarf gorse (Ulex minor) 
+White mangrove (Avicennia marina) 
+Great Rhododendron (Rhododendron maximum)
+Hermit crab (Pagurus longicarpus)
+Armed saltbush (Atriplex acanthocarpa)
+Red abalone (Haliotis rufescens)
+Red-legged frog (Rana aurora)
+Viburnum (Viburnum furcatum)
+Red gorgonian (Paramuricea clavata)
+Oarweed (Laminaria digitata)
+Netleaf oak (Quercus rugosa)
+White mangrove (Avicennia marina) 
+
+
+  
