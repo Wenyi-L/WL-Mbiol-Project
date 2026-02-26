@@ -1,5 +1,5 @@
 ## =========================================================
-## senescence_plots.R
+## senescence_plots.R (Updated 26/02/2026)
 ## Content: Pure plotting functions for survival, fecundity, LS, LRO
 ## Note: Requires library(ggplot2) to be loaded globally.
 ## =========================================================
@@ -8,7 +8,6 @@
 ## plot_maturity_detection
 ## ---------------------------------------------------------
 plot_maturity_detection <- function(ages = NULL, fx = NULL, dat = NULL,
-                                    use_smoothed_fx = TRUE, span = 0.5,
                                     nls_control = list(), plot_file = NULL,
                                     title = NULL) {
   if (is.null(dat)) {
@@ -20,9 +19,8 @@ plot_maturity_detection <- function(ages = NULL, fx = NULL, dat = NULL,
   }
   
   # compute fit + get maturity age with fit data
+  ######WAIT TO BE CHANGED AFTER GETTING THE MATURITY FUNCTION#######
   res <- detect_maturity_age_logistic50(dat_in$x, dat_in$fx,
-                                        use_smoothed_fx = use_smoothed_fx,
-                                        span = span,
                                         nls_control = nls_control,
                                         return_fit = TRUE)
   ma <- res$maturity_age
@@ -162,7 +160,7 @@ plot_fecundity_models <- function(ages, fx_sen, fx_no, species_name) {
 }
 
 ## ---------------------------------------------------------
-## Lifespan distributions
+## Lifespan distributions (REMIAN TO BE FIXED)
 ## ---------------------------------------------------------
 plot_lifespan_distributions <- function(U_sen, U_no, mix_sen, mix_no, qcut = 0.999) {
   LS_exact_sen <- exact_lifespan_pmf(U_sen, mix_sen)
@@ -198,7 +196,7 @@ plot_lifespan_distributions <- function(U_sen, U_no, mix_sen, mix_no, qcut = 0.9
 }
 
 ## ---------------------------------------------------------
-## LRO distributions (ANALYTICAL, post-breeding)
+## LRO distributions (ANALYTICAL, post-breeding) (REMAIN TO BE FIXED)
 ## ---------------------------------------------------------
 # Single-model (2-model wrapper kept for backward compat)
 plot_LRO_distributions <- function(U_sen, U_no,
