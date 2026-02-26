@@ -1,5 +1,5 @@
 ## =========================================================
-## senescence_functions.R (Final Compatible Version)
+## senescence_functions.R (Updated 25/02/2026)
 ##
 ## FIXES:
 ## 1. Reverted argument names to 'sx_senescence'/'fx_senescence'
@@ -29,24 +29,33 @@ calculate_weighted_adult_means <- function(ages, sx, fx, maturity_age) {
 }
 
 ## ---------------------------------------------------------
-## Helper 2: Exact Lifespan PMF (Fixed Column Names & Robust)
+## Helper 2: Exact Lifespan (Fixed Column Names & Robust)
 ## ---------------------------------------------------------
-exact_lifespan_pmf <- function(U, mix, max_age = 500, ...) {
-  # Added ... to swallow 'max_t' if passed
-  pmf <- numeric(max_age)
-  current_vec <- mix
+calcDistLifespan <- function(U, c0_vector, Fdist = "Poisson", ...) {
+  ages <- 1:nrow(U)
+  k_ages <- length(ages)
+  sx <- numeric(k_ages)
+  for(i in 1:(k_ages-1)) sx[i] <- U[i+1, i]
+  sx[k_ages] <- U[k_ages, k_ages]
+ 
+  p_alive <- 1
+  dist_lifespan <- numeric()
+  age <- 1
   
-  for(t in 1:max_age) {
-    mortality_vec <- 1 - colSums(U)
-    mortality_vec[mortality_vec < 0] <- 0
-    pmf[t] <- sum(current_vec * mortality_vec)
-    current_vec <- U %*% current_vec
+  while (p_alive > 0.0001) {
+    idx <- if(age <= k_ages) age else k_ages
+    s_rate <- sx[idx]
+    dead_prop <- p_alive*(1-sx[idx])
+    dist_lifespan[age] <- dead_prop
+    p_alive <- p_alive * sx[idx]
+    age = age + 1
+    
   }
   
-  if(sum(pmf) < 1) pmf[max_age] <- pmf[max_age] + (1 - sum(pmf))
+  if (sum(dist_lifespan)>0) final_dist_lifespan <- dist_lifespan
+  if (sum(final_dist_lifespan)>0) final_dist_lifespan <-final_dist_lifespan/sum(final_dist_lifespan)
+  return(final_dist_lifespan)
   
-  # Returns 'lifespan' and 'pmf' to satisfy senescence_plots.R
-  return(data.frame(lifespan = 1:max_age, pmf = pmf))
 }
 
 ## ---------------------------------------------------------
@@ -100,9 +109,6 @@ calcDistLRO_iterative <- function(U, F, c0_vector, maxClutchSize = 20, maxLRO = 
   return(final_dead_dist)
 }
 
-calcDistLROPostBreedingNoEnv <- function(U, F, c0, maxClutchSize = 20, maxLRO = 50, Fdist = "Poisson") {
-  calcDistLRO_iterative(U, F, c0, maxClutchSize, maxLRO, Fdist)
-}
 
 ## ---------------------------------------------------------
 ## Helper 4: Detect Maturity (Logistic)
