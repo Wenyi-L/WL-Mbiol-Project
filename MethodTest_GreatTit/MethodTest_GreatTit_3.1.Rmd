@@ -1,0 +1,473 @@
+---
+title: "MethodTest_GreatTit 3.0"
+author: "Wenyi Liu"
+date: "2025-11-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data cleaning
+```{r}
+## --- Parameters setting ---
+maturity_age <- 1     # maturity age; fecundity < this age = 0
+estimate_tail <- TRUE # whether to estimate survival for open-ended tail
+tail_k <- 2           # number of last survival values used to estimate tail
+
+## --- Load dataset ---
+great_tit <- read.csv("Great Tit.csv")
+
+## Check required columns
+if(!all(c("x","Nx","noffspring") %in% names(great_tit))){
+  stop("Dataset must contain columns: x, Nx, noffspring")
+}
+
+## Sort by age
+great_tit <- great_tit[order(great_tit$x), ]
+
+```
+
+## MPM building for +senescence model
+```{r}
+## --- Survival to next age: s_x = N[x+1]/N[x] ---
+sx <- c(great_tit$Nx[-1] / great_tit$Nx[-nrow(great_tit)], NA)
+sx[!is.na(sx)] <- pmin(pmax(sx[!is.na(sx)], 0), 1)
+
+## --- Estimate open-ended tail survival s_omega if needed ---
+if (is.na(sx[length(sx)]) && estimate_tail) {
+  sx_non_na <- sx[!is.na(sx)]
+  if (length(sx_non_na) >= tail_k) {
+    s_omega <- mean(tail(sx_non_na, tail_k), na.rm = TRUE)
+  } else if (length(sx_non_na) >= 1) {
+    s_omega <- tail(sx_non_na, 1)
+  } else {
+    s_omega <- 0
+  }
+  s_omega <- pmin(pmax(s_omega, 0), 1)
+  sx[length(sx)] <- s_omega
+}
+
+## --- Fecundity per female (post-breeding): f_x = rho_f * (offspring / N_x) ---
+fx <- (great_tit$noffspring / great_tit$Nx)
+fx[great_tit$x < maturity_age] <- 0
+fx[!is.finite(fx)] <- 0
+sx[!is.finite(sx)] <- 0
+
+## Add back to dataframe for checking
+great_tit$sx <- sx
+great_tit$fx <- fx
+
+cat("== Check head ==\n")
+print(head(great_tit, 10))
+
+## --- Build U (k x k) survival/aging matrix with open tail ---
+ages <- great_tit$x
+k <- length(ages)
+Umat <- matrix(0, nrow = k, ncol = k,
+            dimnames = list(paste0("age", ages), paste0("age", ages)))
+
+for (i in 1:(k-1)) {
+  Umat[i+1, i] <- sx[i]
+}
+Umat[k, k] <- sx[k]  # open tail: stay in last age with s_omega
+
+## --- Build F (k x k) fecundity matrix (post-breeding, only first row) ---
+Fmat <- matrix(0, nrow = k, ncol = k,
+            dimnames = list(paste0("age", ages), paste0("age", ages)))
+Fmat[1, ] <- fx
+
+## --- Combine to Leslie/Lefkovitch matrix ---
+Amat <- Umat + Fmat
+
+cat("\n== Dimension check ==\n")
+cat("Umat:", paste(dim(Umat), collapse=" x "), "\n")
+cat("Fmat:", paste(dim(Fmat), collapse=" x "), "\n")
+cat("Amat:", paste(dim(Amat), collapse=" x "), "\n")
+
+
+## Rename the original model variables for clarity
+sx_senescence <- sx
+fx_senescence <- fx
+Umat_senescence <- Umat
+Fmat_senescence <- Fmat
+Amat_senescence <- Amat
+
+```
+
+## MPM for no senescence model
+```{r}
+## ======================================================
+## No-senescence model: keep sx and fx constant from maturity_age onwards
+## ======================================================
+
+# 1) Locate maturity index in the age vector
+i_m <- which(ages >= maturity_age)[1]
+if (is.na(i_m)) {
+  stop("maturity_age is above the maximum age in the data; please lower maturity_age.")
+}
+
+# 2) Create "no-senescence" versions of sx and fx
+sx_no_senescence <- sx_senescence
+fx_no_senescence <- fx_senescence
+
+#    Freeze sx and fx from maturity onward to their maturity-age values
+sx_no_senescence[seq(i_m, k)] <- sx_senescence[i_m]
+fx_no_senescence[seq(i_m, k)] <- fx_senescence[i_m]
+
+#    Ensure pre-maturity fecundity is zero under post-breeding convention
+if (i_m > 1) {
+  fx_no_senescence[seq(1, i_m - 1)] <- 0
+}
+
+#    Handle any non-finite values (safety)
+sx_no_senescence[!is.finite(sx_no_senescence)] <- 0
+fx_no_senescence[!is.finite(fx_no_senescence)] <- 0
+
+# 3) Build Umat_no_senescence with open tail (self-loop at last age)
+Umat_no_senescence <- matrix(0, nrow = k, ncol = k,
+                             dimnames = list(paste0("age", ages), paste0("age", ages)))
+for (i in 1:(k - 1)) {
+  Umat_no_senescence[i + 1, i] <- sx_no_senescence[i]
+}
+# open tail: last age stays with survival equal to the maturity-age sx
+Umat_no_senescence[k, k] <- sx_no_senescence[k]
+
+# 4) Build Fmat_no_senescence (post-breeding; fecundity only on the first row)
+Fmat_no_senescence <- matrix(0, nrow = k, ncol = k,
+                             dimnames = list(paste0("age", ages), paste0("age", ages)))
+Fmat_no_senescence[1, ] <- fx_no_senescence
+
+# 5) Combine to get Amat_no_senescence
+Amat_no_senescence <- Umat_no_senescence + Fmat_no_senescence
+
+# 6) Quick checks
+cat("\n== No-senescence model checks ==\n")
+cat("Umat_no_senescence:", paste(dim(Umat_no_senescence), collapse = " x "), "\n")
+cat("Fmat_no_senescence:", paste(dim(Fmat_no_senescence), collapse = " x "), "\n")
+cat("Amat_no_senescence:", paste(dim(Amat_no_senescence), collapse = " x "), "\n")
+
+# Column sums of U should be ≤ 1 (death prob = 1 - colSums(U))
+if (any(colSums(Umat_no_senescence) > 1 + 1e-8)) {
+  warning("Some columns of Umat_no_senescence sum to > 1; please check sx_no_senescence values.")
+}
+
+```
+
+## Load packages and Source function files
+
+```{r}
+require(matrixcalc)
+require(exactLTRE)
+require(RColorBrewer)
+require(xlsx)
+library(viridis) # for colorblind-friendly plotting
+library(ggplot2) 
+
+
+#set working trajectories
+setwd("D:/Nian/Oxford/UG/Year 4/Year 4 project/Method/MethodTest_GreatTit")
+## run the utility functions
+source("./LuckFunctions.R")
+
+source("./megamatrixFunctions.R")
+```
+
+## compute mix distribution for both models
+
+```{r}
+
+mixdist_senescence <- mixing_distro(Amat_senescence, Fmat_senescence)
+
+mixdist_no_senescence <- mixing_distro(Amat_no_senescence, Fmat_no_senescence)
+
+ cat("Sum(mixdist_senescence) =", sum(mixdist_senescence),
+     " | Sum(mixdist_no_senescence) =", sum(mixdist_no_senescence), "\n")
+```
+
+## Analysis
+# Lifespan
+```{r}
+# Mean lifespan
+meanL_sen <- mean_lifespan(Umat_senescence, mixdist_senescence)
+meanL_no <- mean_lifespan(Umat_no_senescence, mixdist_no_senescence)
+
+# Variance in lifespan
+varL_sen <- var_lifespan(Umat_senescence, mixdist_senescence)
+varL_no <- var_lifespan(Umat_no_senescence, mixdist_no_senescence)
+
+# Skewness in lifespan
+skewL_sen <- skew_lifespan(Umat_senescence, mixdist_senescence)
+skewL_no <- skew_lifespan(Umat_no_senescence, mixdist_no_senescence)
+
+cat("== Lifespan summary ==\n")
+cat(sprintf("Senescence: mean = %.3f, var = %.3f, skew = %.3f\n",
+            meanL_sen, varL_sen, skewL_sen))
+cat(sprintf("No-senescence: mean = %.3f, var = %.3f, skew = %.3f\n",
+            meanL_no, varL_no, skewL_no))
+
+```
+# Lifetime reproductive output
+```{r}
+# Mean LRO
+meanR_sen <- mean_LRO(Umat_senescence, Fmat_senescence, mixdist_senescence)
+meanR_no <- mean_LRO(Umat_no_senescence, Fmat_no_senescence, mixdist_no_senescence)
+
+# Variance in LRO (use MCR method)
+varR_sen <- var_LRO_mcr(Umat_senescence, Fmat_senescence, "poisson", mixdist_senescence)
+varR_no <- var_LRO_mcr(Umat_no_senescence, Fmat_no_senescence, "poisson", mixdist_no_senescence)
+
+# Skewness in LRO
+skewR_sen <- skew_LRO(Umat_senescence, Fmat_senescence, "poisson", mixdist_senescence)
+skewR_no <- skew_LRO(Umat_no_senescence, Fmat_no_senescence, "poisson", mixdist_no_senescence)
+
+cat("\n== LRO summary ==\n")
+cat(sprintf("Senescence: mean = %.3f, var = %.3f, skew = %.3f\n",
+            meanR_sen, varR_sen, skewR_sen))
+cat(sprintf("No-senescence: mean = %.3f, var = %.3f, skew = %.3f\n",
+            meanR_no, varR_no, skewR_no))
+
+```
+
+## PLOTTING
+#Lifespan
+
+```{r}
+## --- Exact lifespan PMF: p[t] = m^T U^{t-1} x0, t = 1,2,... ---
+## min lifespan = 1 (sex maturity age)
+exact_lifespan_pmf <- function(U, mixdist, max_t = 5000, tol = 1e-12) {
+  k <- nrow(U)
+  m <- 1 - colSums(U)         # per-age death at step end
+  x <- as.vector(mixdist)     # x0
+  stopifnot(abs(sum(x) - 1) < 1e-8)
+
+  pmf <- numeric(max_t)
+  for (t in 1:max_t) {
+    pmf[t] <- sum(m * x)      # p_t = m^T x_{t-1}
+    x <- as.vector(U %*% x)   # x_t = U x_{t-1}
+    if (1 - sum(pmf) < tol) { pmf <- pmf[1:t]; break }
+  }
+  data.frame(lifespan = seq_along(pmf), pmf = pmf / sum(pmf))
+}
+
+moments_from_LS_pmf <- function(df) {
+  x <- df$lifespan; p <- df$pmf
+  mu <- sum(x * p)
+  va <- sum((x - mu)^2 * p)
+  sk <- sum(((x - mu)^3) * p) / (va^(3/2))
+  c(mean = mu, var = va, skew = sk)
+}
+
+# exact PMFs
+LS_exact_sen <- exact_lifespan_pmf(Umat_senescence,    mixdist_senescence,    max_t = 10000)
+LS_exact_no  <- exact_lifespan_pmf(Umat_no_senescence, mixdist_no_senescence, max_t = 10000)
+
+mom_exact_sen <- moments_from_LS_pmf(LS_exact_sen)
+mom_exact_no  <- moments_from_LS_pmf(LS_exact_no)
+
+cat("\n[Exact PMF moments]\n")
+print(rbind(Senescence = mom_exact_sen, `No-senescence` = mom_exact_no))
+
+cat("\n[Analytic]\n")
+print(rbind(
+  Senescence      = c(mean = mean_lifespan(Umat_senescence,    mixdist_senescence),
+                      var  = var_lifespan (Umat_senescence,    mixdist_senescence),
+                      skew = skew_lifespan(Umat_senescence,    mixdist_senescence)),
+  `No-senescence` = c(mean = mean_lifespan(Umat_no_senescence, mixdist_no_senescence),
+                      var  = var_lifespan (Umat_no_senescence, mixdist_no_senescence),
+                      skew = skew_lifespan(Umat_no_senescence, mixdist_no_senescence))
+))
+
+## 画图（自动裁到99.9%质量，和你LRO一样的风格）
+qcut <- 0.999
+xmax_exact <- max(
+  LS_exact_sen$lifespan[which(cumsum(LS_exact_sen$pmf) >= qcut)[1]],
+  LS_exact_no$lifespan [which(cumsum(LS_exact_no$pmf)  >= qcut)[1]]
+)
+LS_exact_sen$model <- "Senescence"
+LS_exact_no$model  <- "No-senescence"
+LS_exact_all <- rbind(LS_exact_sen, LS_exact_no)
+
+pLS_exact <- ggplot(subset(LS_exact_all, lifespan <= xmax_exact),
+                    aes(x = lifespan, y = pmf, color = model)) +
+  geom_line(linewidth = 1.2, alpha = 0.6) +
+  geom_area(aes(fill = model), alpha = 0.10, position = "identity") +
+  scale_color_manual(values = c("Senescence"="#1F78B4", "No-senescence"="#E31A1C")) +
+  scale_fill_manual(values  = c("Senescence"="#1F78B4", "No-senescence"="#E31A1C")) +
+  labs(x = "Lifespan (steps, min=1)", y = "Probability mass (PMF)",
+       title = "Lifespan distribution (Exact; truncated at 99.9% mass)") +
+  coord_cartesian(xlim = c(1, xmax_exact)) +
+  theme_classic(base_size = 14) +
+  theme(legend.title = element_blank(),
+        legend.position = "top")
+pLS_exact
+
+```
+
+
+#Lifetime reproductive outcome
+```{r}
+## ===== LRO Monte Carlo that matches analytic functions =====
+## Assumptions exactly align with mean_LRO / var_LRO_mcr / skew_LRO:
+## - Reward per step at age z: eff[z] <- colSums(Fmat)[z]
+## - Reward distribution by `repro_var`:
+##     "poisson"  : Y ~ Poisson(eff[z])
+##     "fixed"    : Y <- eff[z]         (deterministic; may be non-integer numeric)
+##     "bernoulli": Y ~ Bernoulli(eff[z])  (requires 0 <= eff[z] <= 1)
+## - Survival/transition: with prob s=sum(U[,z]) survive and go to z' ~ U[,z]/s; else die
+## - Start age z0 ~ mixdist  (must sum to 1)
+
+library(ggplot2)
+
+.draw_LRO_once <- function(U, eff, z0, repro_var = "poisson", max_steps = 5000) {
+  k <- nrow(U)
+  z <- z0
+  Tsum <- 0
+  for (t in 1:max_steps) {
+    # reward at current age (post-breeding in the same step)
+    if (repro_var %in% c("poisson","Poisson")) {
+      Tsum <- Tsum + rpois(1, lambda = max(eff[z], 0))
+    } else if (repro_var %in% c("fixed","Fixed")) {
+      Tsum <- Tsum + eff[z]
+    } else if (repro_var %in% c("bernoulli","Bernoulli")) {
+      p <- min(max(eff[z], 0), 1)  # clamp to [0,1] just in case
+      Tsum <- Tsum + rbinom(1, size = 1, prob = p)
+    } else {
+      stop("repro_var must be 'poisson', 'fixed', or 'bernoulli'.")
+    }
+    # survival to next step
+    s <- sum(U[, z])
+    if (s <= 0) break                # certain death at end of this step
+    if (runif(1) > s) break          # die at end of this step
+    # survive: transition to next age conditional on survival
+    probs <- U[, z] / s
+    z <- sample.int(k, size = 1, prob = probs)
+  }
+  Tsum
+}
+
+simulate_LRO_MCR <- function(Umat, Fmat, mixdist, n = 200000,
+                             repro_var = "poisson", max_steps = 5000) {
+  k <- nrow(Umat)
+  # rewards per step (from-age = column)
+  eff <- as.vector(colSums(Fmat))
+  # start distribution
+  mixdist <- as.vector(mixdist) / sum(mixdist)
+  cs <- cumsum(mixdist)
+  z0 <- findInterval(runif(n), cs) + 1L
+  # simulate
+  Ts <- numeric(n)
+  for (i in 1:n) Ts[i] <- .draw_LRO_once(Umat, eff, z0[i], repro_var, max_steps)
+  Ts
+}
+
+pmf_from_sample_int <- function(Ts, qcut = 0.999) {
+  Tmax <- as.integer(quantile(Ts, probs = qcut, names = FALSE, type = 1))
+  tab <- tabulate(Ts[Ts <= Tmax] + 1L, nbins = Tmax + 1L)  # bin for T=0 at index 1
+  pmf <- tab / sum(tab)
+  data.frame(LRO = 0:Tmax, pmf = pmf, cdf = cumsum(pmf), xmax = Tmax)
+}
+
+moments_from_pmf_int <- function(df) {
+  x <- df$LRO; p <- df$pmf
+  mu <- sum(x * p)
+  va <- sum((x - mu)^2 * p)
+  sk <- sum(((x - mu)^3) * p) / (va^(3/2))
+  c(mean = mu, var = va, skew = sk)
+}
+
+## ===== Run for both models, compare to analytic =====
+set.seed(42)
+n_sims <- 200000
+repro_var <- "poisson"  # <- should be the same method for skew_
+
+# mixing distributions you already computed
+# mixdist_senescence    <- mixing_distro(Amat_senescence,    Fmat_senescence)
+# mixdist_no_senescence <- mixing_distro(Amat_no_senescence, Fmat_no_senescence)
+
+Ts_sen <- simulate_LRO_MCR(Umat_senescence,    Fmat_senescence,    mixdist_senescence,
+                           n = n_sims, repro_var = repro_var)
+Ts_no  <- simulate_LRO_MCR(Umat_no_senescence, Fmat_no_senescence, mixdist_no_senescence,
+                           n = n_sims, repro_var = repro_var)
+
+PMF_R_sen <- pmf_from_sample_int(Ts_sen, qcut = 0.999)
+PMF_R_no  <- pmf_from_sample_int(Ts_no,  qcut = 0.999)
+
+mom_MC_sen <- moments_from_pmf_int(PMF_R_sen)
+mom_MC_no  <- moments_from_pmf_int(PMF_R_no)
+
+# Analytic moments
+meanR_sen <- as.numeric(mean_LRO(Umat_senescence, Fmat_senescence, mixdist_senescence))
+meanR_no  <- as.numeric(mean_LRO(Umat_no_senescence, Fmat_no_senescence, mixdist_no_senescence))
+
+varR_sen  <- as.numeric(var_LRO_mcr(Umat_senescence, Fmat_senescence, "poisson", mixdist_senescence))
+varR_no   <- as.numeric(var_LRO_mcr(Umat_no_senescence, Fmat_no_senescence, "poisson", mixdist_no_senescence))
+
+skewR_sen <- as.numeric(skew_LRO(Umat_senescence, Fmat_senescence, "poisson", mixdist_senescence))
+skewR_no  <- as.numeric(skew_LRO(Umat_no_senescence, Fmat_no_senescence, "poisson", mixdist_no_senescence))
+
+cat("\n[From Monte Carlo PMF]\n")
+print(rbind(Senescence = mom_MC_sen, `No-senescence` = mom_MC_no))
+
+cat("\n[Analytic]\n")
+print(rbind(
+  Senescence    = c(mean = meanR_sen, var = varR_sen, skew = skewR_sen),
+  `No-senescence` = c(mean = meanR_no,  var = varR_no,  skew = skewR_no)
+))
+
+# deltas
+delta_sen <- c(mean = mom_MC_sen["mean"] - meanR_sen,
+               var  = mom_MC_sen["var"]  - varR_sen,
+               skew = mom_MC_sen["skew"] - skewR_sen)
+delta_no  <- c(mean = mom_MC_no["mean"] - meanR_no,
+               var  = mom_MC_no["var"]  - varR_no,
+               skew = mom_MC_no["skew"] - skewR_no)
+cat("\n[Δ MC - Analytic]\n")
+print(rbind(Senescence = delta_sen, `No-senescence` = delta_no))
+
+## ===== Plot (x trimmed at 99.9% mass, same style as your lifespan figure) =====
+PMF_R_sen$model <- "Senescence"
+PMF_R_no$model  <- "No-senescence"
+PMF_R_all <- rbind(PMF_R_sen[, c("LRO","pmf","model")],
+                   PMF_R_no[,  c("LRO","pmf","model")])
+
+xmax_all <- max(PMF_R_sen$xmax[1], PMF_R_no$xmax[1], na.rm = TRUE)
+
+pLRO_mc <- ggplot(subset(PMF_R_all, LRO <= xmax_all),
+                  aes(x = LRO, y = pmf, color = model)) +
+  geom_line(linewidth = 1.2, alpha = 0.6) +
+  geom_area(aes(fill = model), alpha = 0.10, position = "identity") +
+  scale_color_manual(values = c("Senescence"="#1F78B4", "No-senescence"="#E31A1C")) +
+  scale_fill_manual(values  = c("Senescence"="#1F78B4", "No-senescence"="#E31A1C")) +
+  labs(x = "LRO (T)", y = "Probability mass (PMF)",
+       title = sprintf("LRO distribution (Monte Carlo, %d sims; truncated at 99.9%% mass)", n_sims)) +
+  coord_cartesian(xlim = c(0, xmax_all)) +
+  theme_classic(base_size = 14) +
+  theme(legend.title = element_blank(),
+        legend.position = "top")
+
+print(pLRO_mc)
+
+
+```
+
+
+# Output as a table
+```{r}
+summary_df <- data.frame(
+  model = c("Senescence", "No-senescence"),
+  mean_lifespan = c(meanL_sen, meanL_no),
+  var_lifespan = c(varL_sen, varL_no),
+  skew_lifespan = c(skewL_sen, skewL_no),
+  mean_LRO = c(meanR_sen, meanR_no),
+  var_LRO = c(varR_sen, varR_no),
+  skew_LRO = c(skewR_sen, skewR_no)
+)
+
+print(summary_df)
+
+```
+
+
+
