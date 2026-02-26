@@ -111,76 +111,18 @@ calcDistLRO_iterative <- function(U, F, c0_vector, maxClutchSize = 20, maxLRO = 
 
 
 ## ---------------------------------------------------------
-## Helper 4: Detect Maturity (Logistic)
+## Helper 4: Detect Maturity (Wait for the new function)
 ## ---------------------------------------------------------
-detect_maturity_age_logistic <- function(ages, fx, min_fx = 1e-8, use_smoothed_fx = TRUE, 
-                                         span = 0.5, prob_threshold = 0.5, 
-                                         nls_control = list(), return_fit = FALSE) {
-  ages <- as.numeric(ages); fx <- as.numeric(fx)
-  if (length(ages) != length(fx)) stop("ages/fx mismatch")
-  if (all(is.na(fx)) || max(fx, na.rm=TRUE) <= 0) return(min(ages, na.rm=TRUE))
-  
-  fx_clean <- fx; fx_clean[!is.finite(fx_clean)] <- 0; fx_clean[fx_clean < 0] <- 0
-  sm_vals <- fx_clean
-  if (use_smoothed_fx && length(unique(ages[is.finite(fx_clean)])) >= 3) {
-    try({
-      lo <- stats::loess(fx_clean ~ ages, span = span, degree = 2, control = loess.control(surface = "interpolate"))
-      sm_vals <- as.numeric(stats::predict(lo, newdata = ages))
-    }, silent=TRUE)
-  }
-  sm_vals[!is.finite(sm_vals)] <- 0; sm_vals[sm_vals < 0] <- 0
-  
-  cum_raw <- cumsum(sm_vals)
-  total <- tail(cum_raw, 1)
-  if (!is.finite(total) || total <= 0) {
-    idx <- which(fx_clean > min_fx)
-    return(if(length(idx)>0) ages[min(idx)] else min(ages, na.rm=TRUE))
-  }
-  
-  cum_prob <- cum_raw / total
-  df_fit <- data.frame(age = ages, p = cum_prob, fx = sm_vals)
-  
-  start_x50 <- sum(df_fit$age * df_fit$fx)/sum(df_fit$fx)
-  start_s <- (max(df_fit$age) - min(df_fit$age)) / 6
-  if (!is.finite(start_s) || start_s <= 0) start_s <- 1
-  
-  fit_nls <- NULL
-  try({ fit_nls <- stats::nls(p ~ 1 / (1 + exp(-(age - x50)/s)), data = df_fit, 
-                              start = list(x50 = start_x50, s = start_s), control = do.call(nls.control, nls_control)) }, silent=TRUE)
-  if (is.null(fit_nls) && requireNamespace("minpack.lm", quietly=TRUE)) {
-    try({ fit_nls <- minpack.lm::nlsLM(p ~ 1 / (1 + exp(-(age - x50)/s)), data = df_fit, start = list(x50 = start_x50, s = start_s)) }, silent=TRUE)
-  }
-  
-  ma_est <- NULL
-  if (!is.null(fit_nls)) {
-    coef_est <- coef(fit_nls)
-    p_safe <- min(max(prob_threshold, 1e-6), 1 - 1e-6)
-    ma_est <- coef_est["x50"] - coef_est["s"] * log(1/p_safe - 1)
-  }
-  
-  if (is.null(ma_est)) {
-    if (any(df_fit$p >= prob_threshold)) {
-      i <- which(df_fit$p >= prob_threshold)[1]
-      if (i == 1) ma_est <- df_fit$age[1]
-      else {
-        frac <- (prob_threshold - df_fit$p[i-1]) / (df_fit$p[i] - df_fit$p[i-1])
-        ma_est <- df_fit$age[i-1] + frac * (df_fit$age[i] - df_fit$age[i-1])
-      }
-    } else ma_est <- max(ages)
-  }
-  ma_est <- max(ma_est, min(ages, na.rm=TRUE))
-  if (return_fit) return(list(maturity_age = as.numeric(ma_est), fit = fit_nls))
-  return(as.numeric(ma_est))
-}
+
 
 ## ---------------------------------------------------------
-## Data Prep
+## Data Prep(wait to be fixed after the maturity function is given)
 ## ---------------------------------------------------------
-prepare_demography_data_from_df <- function(dat, input_type="auto", maturity_age="auto", estimate_tail=TRUE, 
-                                            tail_k=2, maturity_method="logistic", maturity_prob=0.5, 
-                                            auto_min_fx=1e-8, auto_span=0.5, plot_maturity=FALSE, plot_path=NULL, ...) {
+prepare_demography_data_from_df <- function(dat, input_type="auto", maturity_age="auto", estimate_tail=FALSE, 
+                                            maturity_method="wait to be decide",
+                                            plot_maturity=FALSE, plot_path=NULL, ...) {
   if(maturity_method[1] == "logistic50") maturity_method <- "logistic"
-  maturity_method <- match.arg(maturity_method, c("logistic", "absolute"))
+  maturity_method <- match.arg(maturity_method, c("logistic", "absolute")) ####FIX THIS AFTER GETTING THE MATURITY FUNCTION####
   if (!("x" %in% names(dat))) stop("Dataset must contain column: x")
   dat <- dat[order(dat$x), ]
   ages <- dat$x; k <- nrow(dat)
@@ -199,7 +141,7 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", maturity_age
   } else if(has_col("Nx") && k>=2) {
     sx <- rep(NA, k); idx <- which(!is.na(Nx[-k]) & Nx[-k]>0)
     sx[idx] <- Nx[idx+1]/Nx[idx]
-  } else stop("No survival info")
+  } else stop("No survival info") #This step is different methods to calculate sx from different variable stypes in the original dataset
   
   if(is.na(tail(sx,1)) && estimate_tail) {
     s_omega <- if(sum(!is.na(sx))>=tail_k) mean(tail(sx[!is.na(sx)], tail_k)) else 0
