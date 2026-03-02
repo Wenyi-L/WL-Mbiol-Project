@@ -1,5 +1,5 @@
 ## =========================================================
-## run_sensitivity_analysis_diff.R
+## run_sensitivity_analysis_diff.R (Checked 02/03/2026)
 ##
 ## Goal: 
 ## 1. Run Senescence vs No-senescence models under different
@@ -8,6 +8,7 @@
 ##    No-senescence and the baseline Senescence model.
 ##    Formula: (Sen - NoSen) / Sen
 ## 3. Visualize how this difference changes with the threshold.
+## 4. Need to remove mix() stuff but double check with Chrissy
 ## =========================================================
 
 rm(list = ls())

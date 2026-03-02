@@ -1,22 +1,21 @@
 ## =========================================================
-## plot_methodology_comparison_v5_repel.R
+## plot_methodology_comparison.R (Updated on 02/03/2026)
 ##
 ## Purpose: 
 ## 1. Load CSV from D:/Nian/Mbiol/...
 ## 2. Fetch Taxonomic Class from Jones2014.xls (Cell D1).
-## 3. Visualize with ggrepel to prevent label overlap.
-## 4. Paths are fixed as requested.
+## 3. Paths are fixed as requested.
+## 4. Removed species labels (02/03/2026)
 ## =========================================================
 
-# Ensure ggrepel is installed
-if (!require("ggrepel")) install.packages("ggrepel")
+
 
 library(readxl)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(scales)
-library(ggrepel) # Added for smart labeling
+
 
 # 1. Paths (Fixed as requested)
 excel_file <- "D:/Nian/Mbiol/Jones2014.xls"
@@ -75,29 +74,9 @@ create_final_plot <- function(data_subset, title_suffix) {
     geom_violin(aes(fill = Method), alpha = 0.2, color = NA) +
     geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) +
     
-    # Class lines (Legend source)
-    geom_line(aes(group = species, color = Class), alpha = 0.4) + 
     
     # Points (Hidden from legend)
     geom_point(alpha = 0.2, shape = 16, size = 1, show.legend = FALSE) +
-    
-    # Highlighted points (Triangles, hidden from legend)
-    geom_point(data = df_sensitive, aes(color = Class), 
-               shape = 17, size = 3, show.legend = FALSE) +
-    
-    # SMART LABELS (Updated to use ggrepel)
-    geom_text_repel(data = df_labels_left, aes(label = species), 
-                    size = 2.8, 
-                    direction = "y",      # Stack vertically
-                    nudge_x = -0.6,       # Push to the left significantly
-                    hjust = 1,            # Right align text
-                    segment.size = 0.2,   # Thin connecting lines
-                    segment.color = "grey50",
-                    min.segment.length = 0, # Always draw lines
-                    max.overlaps = Inf,   # FORCE all labels to show
-                    force = 2) +          # Strength of separation
-    
-    facet_wrap(~Metric_Label, scales = "free_y", ncol = 3) +
     
     # Formatting
     scale_y_continuous(trans = scales::pseudo_log_trans(base = 10, sigma = 0.1),
@@ -109,7 +88,6 @@ create_final_plot <- function(data_subset, title_suffix) {
     coord_cartesian(clip = "off") + 
     
     labs(title = paste("Methodological Sensitivity:", title_suffix),
-         subtitle = "Triangles: >50% Diff | Labels: Left-side only (via ggrepel) | Class: Lines only",
          y = "Relative Difference: (Sen - NoSen)/Sen", x = "", color = "Taxonomic Class") +
     
     theme(legend.position = "bottom",

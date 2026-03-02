@@ -1,11 +1,5 @@
 ## =========================================================
-## plot_summary_grouped_comparison_v8.R
-##
-## Purpose:
-##    1. Compare differences between "Plant" and "Animal" groups.
-##    2. COLOR UPDATE:
-##       - Plant: Green tones (Light background, Dark points).
-##       - Animal: Yellow tones (Light background, Dark/Amber points).
+## plot_summary_grouped_comparison.R (Updated 02/03/2026)
 ## =========================================================
 
 rm(list = ls())
@@ -56,19 +50,7 @@ if (!file.exists(summary_file)) {
 
 df <- read.csv(summary_file, stringsAsFactors = FALSE)
 
-# Create groups
-df_merged <- df %>%
-  left_join(df_metadata, by = "species") %>%
-  mutate(
-    Group = case_when(
-      Class %in% c("Algae", "PlantNonTree", "PlantTree") ~ "Plant",
-      Class %in% c("Human", "Invertebrate", "VertMammal", "VertNonMammal") ~ "Animal",
-      TRUE ~ "Other"
-    )
-  ) %>%
-  filter(Group != "Other")
-
-# Calculate Percentage Difference
+# Calculate Percentage Difference #No longer calculate absolute percentage difference
 df_diff <- df_merged %>%
   filter(model %in% c("Senescence", "No-senescence")) %>%
   select(species, Group, model, mean_lifespan, var_lifespan, skew_lifespan, mean_LRO, var_LRO, skew_LRO) %>%
@@ -78,28 +60,12 @@ df_diff <- df_merged %>%
     perc_diff = ifelse(
       is.na(Senescence) | is.na(`No-senescence`) | Senescence == 0,
       NA_real_,
-      100 * abs((Senescence - `No-senescence`) / Senescence)
-    )
+      100 * (Senescence - `No-senescence`) / Senescence)
   )
 
-## -------------------------------
-## 4. Define Colors (Green & Yellow)
-## -------------------------------
-
-# --- PLANT COLORS (Green) ---
-# Background: Soft Pale Green
-FILL_PLANT  <- "#A5D6A7"   
-# Points: Deep Forest Green (High contrast)
-POINT_PLANT <- "#1B5E20"   
-
-# --- ANIMAL COLORS (Yellow) ---
-# Background: Warm Light Yellow (Not too bright/neon)
-FILL_ANIMAL <- "#FFE082"   
-# Points: Dark Amber / Goldenrod (Visible on white/yellow)
-POINT_ANIMAL <- "#F57F17"  
 
 ## -------------------------------
-## 5. Plotting Function
+## 4. Plotting Function
 ## -------------------------------
 create_comparison_plot <- function(data, title, filename) {
   
@@ -113,7 +79,8 @@ create_comparison_plot <- function(data, title, filename) {
       scale = "width",
       trim = FALSE,
       alpha = 0.5,       # Slightly more opaque to show the yellow/green better
-      color = NA
+      color = NA,
+      aes(fill = model)
     ) +
     
     # --- Layer 2: Boxplot (Transparent Fill) ---
@@ -142,9 +109,6 @@ create_comparison_plot <- function(data, title, filename) {
       labels = scales::comma_format()
     ) +
     
-    # --- COLOR MAPPING ---
-    scale_fill_manual(values = c("Plant" = FILL_PLANT, "Animal" = FILL_ANIMAL)) +
-    scale_color_manual(values = c("Plant" = POINT_PLANT, "Animal" = POINT_ANIMAL)) +
     
     # Theme
     theme_classic(base_size = 15) +
@@ -158,7 +122,7 @@ create_comparison_plot <- function(data, title, filename) {
     labs(
       title = title,
       x     = NULL, 
-      y     = "Absolute % Change (Log Scale)"
+      y     = " % Change (Log Scale)"
     )
   
   ggsave(file.path(fig_dir, filename), p, width = 11, height = 7, dpi = 300)
@@ -178,7 +142,7 @@ df_LS <- df_diff %>%
                                labels = c("Mean", "Variance", "Skewness"))) %>%
   filter(!is.na(perc_diff))
 
-create_comparison_plot(df_LS, "Lifespan Sensitivity: Plant vs Animal", "compare_lifespan_green_yellow.png")
+create_comparison_plot(df_LS, "Lifespan Sensitivity: Senescence VS No-senescence", "compare_lifespan_sen_nosen.png")
 
 # B. LRO Comparison
 df_LRO <- df_diff %>%
@@ -188,6 +152,6 @@ df_LRO <- df_diff %>%
                                labels = c("Mean", "Variance", "Skewness"))) %>%
   filter(!is.na(perc_diff))
 
-create_comparison_plot(df_LRO, "LRO Sensitivity: Plant vs Animal", "compare_LRO_green_yellow.png")
+create_comparison_plot(df_LRO, "LRO Sensitivity: Senescence VS No-senescence", "compare_LRO_sen_nosen.png")
 
 message("Done! Plots saved to: ", fig_dir)

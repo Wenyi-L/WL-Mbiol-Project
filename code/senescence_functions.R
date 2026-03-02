@@ -29,7 +29,7 @@ calculate_weighted_adult_means <- function(ages, sx, fx, maturity_age) {
 }
 
 ## ---------------------------------------------------------
-## Helper 2: Exact Lifespan (Fixed Column Names & Robust)
+## Helper 2: Exact Lifespan (Updated according to calcDistLRO_iterative)
 ## ---------------------------------------------------------
 calcDistLifespan <- function(U, c0_vector, Fdist = "Poisson", ...) {
   ages <- 1:nrow(U)
@@ -157,7 +157,7 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", maturity_age
   
   if(is.character(maturity_age) && maturity_age=="auto") {
     if(maturity_method=="logistic") {
-      res <- detect_maturity_age_logistic(ages, fx, min_fx=auto_min_fx, span=auto_span, prob_threshold=maturity_prob)
+      res <- detect_maturity_age_logistic(ages, fx, min_fx=auto_min_fx, prob_threshold=maturity_prob)
       maturity_age_eff <- res
     } else {
       idx <- which(fx > auto_min_fx)
@@ -170,7 +170,7 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", maturity_age
 }
 
 ## ---------------------------------------------------------
-## Model Builders (RESTORED ARGUMENT NAMES)
+## Model Builders (Removed MIXDIST) 
 ## ---------------------------------------------------------
 build_MPM_senescence <- function(ages, sx, fx) {
   k <- length(ages)
@@ -216,6 +216,7 @@ build_MPM_yes_actuarial_no_reproductive <- function(ages, sx_senescence, fx_sene
   build_MPM_senescence(ages, sx_senescence, fx_no)
 }
 
+###DO I STILL NEED THE MIXDIST??###
 compute_summary_table <- function(U_sen, U_no, U_noA_yesR, U_yesA_noR, F_sen, F_no, F_noA_yesR, F_yesA_noR, mix_sen, mix_no, mix_noA_yesR, mix_yesA_noR, repro_var="Poisson") {
   if(!exists("mean_lifespan")) stop("Source LuckFunctions.R first!")
   

@@ -5,7 +5,7 @@
 ## =========================================================
 
 ## ---------------------------------------------------------
-## plot_maturity_detection
+## plot_maturity_detection ####WAIT TO BE CHANGED####
 ## ---------------------------------------------------------
 plot_maturity_detection <- function(ages = NULL, fx = NULL, dat = NULL,
                                     nls_control = list(), plot_file = NULL,
@@ -42,10 +42,6 @@ plot_maturity_detection <- function(ages = NULL, fx = NULL, dat = NULL,
     df_curve <- data.frame(age = age_seq, cum_prob = stats::approx(df_plot$age, df_plot$cum_prob, xout = age_seq)$y)
   }
   
-  # Ensure ggplot2 is available
-  if (!requireNamespace("ggplot2", quietly = TRUE)) {
-    stop("Package 'ggplot2' is required for plotting. Please install it (install.packages('ggplot2')).")
-  }
   
   p <- ggplot() +
     geom_line(data = df_curve, aes(x = age, y = cum_prob), linewidth = 1) +
@@ -116,7 +112,7 @@ plot_fecundity_models <- function(ages, fx_sen, fx_no, species_name) {
 }
 
 ## ---------------------------------------------------------
-## Helper for adaptive global cutoff
+## Helper for adaptive global cutoff ###Guess I dont need this anymore but Im gonna wait for the function###
 ## ---------------------------------------------------------
 .choose_global_cutoff_age <- function(ages_all,
                                       pmf_global,
@@ -160,7 +156,7 @@ plot_fecundity_models <- function(ages, fx_sen, fx_no, species_name) {
 }
 
 ## ---------------------------------------------------------
-## Lifespan distributions (REMIAN TO BE FIXED)
+## Lifespan distributions (REMIAN TO BE FIXED) No LONGER NEED mix_sen,mix_no 
 ## ---------------------------------------------------------
 plot_lifespan_distributions <- function(U_sen, U_no, mix_sen, mix_no, qcut = 0.999) {
   LS_exact_sen <- exact_lifespan_pmf(U_sen, mix_sen)
@@ -196,7 +192,7 @@ plot_lifespan_distributions <- function(U_sen, U_no, mix_sen, mix_no, qcut = 0.9
 }
 
 ## ---------------------------------------------------------
-## LRO distributions (ANALYTICAL, post-breeding) (REMAIN TO BE FIXED)
+## LRO distributions (ANALYTICAL, post-breeding) (REMAIN TO BE FIXED) NO longer need mix_sen, mix_no
 ## ---------------------------------------------------------
 # Single-model (2-model wrapper kept for backward compat)
 plot_LRO_distributions <- function(U_sen, U_no,
@@ -208,7 +204,7 @@ plot_LRO_distributions <- function(U_sen, U_no,
                                    qcut = 0.999) {
   # U_* and F_* are age-structured post-breeding U and F (as in build_MPM_*).
   # mix_* are initial state distributions (vectors length = nrow(U)).
-  # We'll use calcDistLROPostBreedingNoEnv since models are no-env here.
+  # We'll use calcDistLRO_iterative since models are no-env here.
   
   k_sen <- nrow(U_sen)
   k_no  <- nrow(U_no)
@@ -218,14 +214,14 @@ plot_LRO_distributions <- function(U_sen, U_no,
   c0_no  <- rep(0, k_no);  c0_no[1] <- 1
   
   dist_sen <- tryCatch({
-    calcDistLROPostBreedingNoEnv(U_sen, F_sen, c0_sen, maxClutchSize, maxLRO)
+    calcDistLRO_iterative(U_sen, F_sen, c0_sen, maxClutchSize, maxLRO)
   }, error = function(e) {
-    stop("calcDistLROPostBreedingNoEnv failed for Senescence model: ", conditionMessage(e))
+    stop("calcDistLRO_iterative failed for Senescence model: ", conditionMessage(e))
   })
   dist_no <- tryCatch({
-    calcDistLROPostBreedingNoEnv(U_no, F_no, c0_no, maxClutchSize, maxLRO)
+    calcDistLRO_iterative(U_no, F_no, c0_no, maxClutchSize, maxLRO)
   }, error = function(e) {
-    stop("calcDistLROPostBreedingNoEnv failed for No-senescence model: ", conditionMessage(e))
+    stop("calcDistLRO_iterative failed for No-senescence model: ", conditionMessage(e))
   })
   
   # dist_* are numeric vectors indexed from LRO = 0..maxLRO
@@ -278,10 +274,10 @@ plot_LRO_distributions_4 <- function(
   c0_noA <- rep(0, nrow(U_noA_yesR)); c0_noA[1] <- 1
   c0_yesA <- rep(0, nrow(U_yesA_noR)); c0_yesA[1] <- 1
   
-  dist_sen      <- calcDistLROPostBreedingNoEnv(U_sen,      F_sen,      c0_sen,    maxClutchSize, maxLRO)
-  dist_no       <- calcDistLROPostBreedingNoEnv(U_no,       F_no,       c0_no,     maxClutchSize, maxLRO)
-  dist_noA_yesR <- calcDistLROPostBreedingNoEnv(U_noA_yesR, F_noA_yesR, c0_noA,    maxClutchSize, maxLRO)
-  dist_yesA_noR <- calcDistLROPostBreedingNoEnv(U_yesA_noR, F_yesA_noR, c0_yesA,   maxClutchSize, maxLRO)
+  dist_sen      <- calcDistLRO_iterative(U_sen,      F_sen,      c0_sen,    maxClutchSize, maxLRO)
+  dist_no       <- calcDistLRO_iterative(U_no,       F_no,       c0_no,     maxClutchSize, maxLRO)
+  dist_noA_yesR <- calcDistLRO_iterative(U_noA_yesR, F_noA_yesR, c0_noA,    maxClutchSize, maxLRO)
+  dist_yesA_noR <- calcDistLRO_iterative(U_yesA_noR, F_yesA_noR, c0_yesA,   maxClutchSize, maxLRO)
   
   dist_sen      <- as.numeric(dist_sen); dist_no       <- as.numeric(dist_no)
   dist_noA_yesR <- as.numeric(dist_noA_yesR); dist_yesA_noR <- as.numeric(dist_yesA_noR)
