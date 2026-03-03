@@ -1,5 +1,5 @@
 ## =========================================================
-## senescence_functions.R (Updated 25/02/2026)
+## senescence_functions.R (Updated 03/03/2026)
 ##
 ## FIXES:
 ## 1. Reverted argument names to 'sx_senescence'/'fx_senescence'
@@ -29,7 +29,7 @@ calculate_weighted_adult_means <- function(ages, sx, fx, senescence_onset_age) {
 }
 
 ## ---------------------------------------------------------
-## Helper 2: Exact Lifespan (Updated according to calcDistLRO_iterative)
+## Helper 2: Exact Lifespan (Updated according to calcDistLRO)
 ## ---------------------------------------------------------
 calcDistLifespan <- function(U, c0_vector, Fdist = "Poisson", ...) {
   ages <- 1:nrow(U)
@@ -59,67 +59,19 @@ calcDistLifespan <- function(U, c0_vector, Fdist = "Poisson", ...) {
 }
 
 ## ---------------------------------------------------------
-## Helper 3: Iterative LRO Dist
+## Helper 3: USE calcDistLRONoEnv FROM Robin's code for LRO distribution calculation
 ## ---------------------------------------------------------
-calcDistLRO_iterative <- function(U, F, c0_vector, maxClutchSize = 20, maxLRO = 50, Fdist = "Poisson", ...) {
-  ages <- 1:nrow(U)
-  k_ages <- length(ages)
-  sx <- numeric(k_ages)
-  for(i in 1:(k_ages-1)) sx[i] <- U[i+1, i]
-  sx[k_ages] <- U[k_ages, k_ages]
-  
-  B_list <- list()
-  for (i in 1:k_ages) {
-    mean_off <- sum(F[, i])
-    surv_prob <- if (i < k_ages) sum(U[,i]) else U[k_ages, k_ages]
-    lambda_val <- if (surv_prob > 0) mean_off / surv_prob else 0
-    probs <- dpois(0:maxClutchSize, lambda = lambda_val)
-    B_list[[i]] <- probs / sum(probs)
-  }
-  
-  current_dist <- numeric(maxLRO + 1)
-  if(!is.null(c0_vector) && length(c0_vector) == k_ages) current_dist[1] <- 1 else current_dist[1] <- 1
-  final_dead_dist <- numeric(maxLRO + 1)
-  
-  for (age in 1:(k_ages*3)) { 
-    idx <- if(age <= k_ages) age else k_ages
-    s_rate <- sx[idx]
-    clutch_probs <- B_list[[idx]]
-    dead_frac <- 1 - s_rate
-    final_dead_dist <- final_dead_dist + (current_dist * dead_frac)
-    
-    if (s_rate <= 0 || sum(current_dist) < 1e-6) break
-    
-    next_gen <- numeric(maxLRO + 1)
-    idx_c <- which(current_dist > 0)
-    idx_b <- which(clutch_probs > 0)
-    
-    for (i in idx_c) {
-      for (j in idx_b) {
-        ni <- i + j - 1
-        if (ni <= (maxLRO + 1)) next_gen[ni] <- next_gen[ni] + current_dist[i] * clutch_probs[j]
-        else next_gen[maxLRO + 1] <- next_gen[maxLRO + 1] + current_dist[i] * clutch_probs[j]
-      }
-    }
-    current_dist <- next_gen * s_rate
-  }
-  
-  if (sum(current_dist) > 0) final_dead_dist <- final_dead_dist + current_dist
-  if(sum(final_dead_dist) > 0) final_dead_dist <- final_dead_dist / sum(final_dead_dist)
-  return(final_dead_dist)
-}
-
 
 ## ---------------------------------------------------------
 ## Data Prep
 ## ---------------------------------------------------------
-prepare_demography_data_from_df <- function(dat, input_type="auto", estimate_tail=FALSE, 
-                                            plot_maturity=FALSE, plot_path=NULL, ...) {
+prepare_demography_data_from_df <- function(dat, input_type="auto", study_type = "Unknown",...) {
   if (!("x" %in% names(dat))) stop("Dataset must contain column: x")
   dat <- dat[order(dat$x), ]
   ages <- dat$x; k <- nrow(dat)
   
   has_col <- function(n) n %in% names(dat) && any(!is.na(dat[[n]]))
+  has_name <- function(n) n %in% names(dat)
   Nx <- if(has_col("Nx")) as.numeric(dat$Nx) else rep(NA, k)
   lx_raw <- if(has_col("lx")) as.numeric(dat$lx) else rep(NA, k)
   qx <- if(has_col("qx")) as.numeric(dat$qx) else rep(NA, k)
@@ -135,34 +87,50 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", estimate_tai
     sx[idx] <- Nx[idx+1]/Nx[idx]
   } else stop("No survival info") #This step is different methods to calculate sx from different variable stypes in the original dataset
   
-  if(is.na(tail(sx,1)) && estimate_tail) {
-    s_omega <- if(sum(!is.na(sx))>=tail_k) mean(tail(sx[!is.na(sx)], tail_k)) else 0
-    sx[length(sx)] <- s_omega
+  if (is.na(tail(sx, 1))) {
+    if (grepl("IBCohort", study_type, ignore.case = TRUE)) {
+      sx[!is.finite(sx)] <- 0
+      message("     [Info] Cohort data detected: setting tail NA to 0")
+    } else if (grepl("LTPeriod|Modelled", study_type, ignore.case = TRUE)) {
+      valid_sx <- sx[!is.na(sx)]
+      if (length(valid_sx) > 0) {
+        sx[is.na(sx)] <- tail(valid_sx, 1) 
+        message("     [Info] Period/Modelled data detected: carrying forward last survival rate")
+      } else {
+        sx[is.na(sx)] <- 0 
+      }
+    } else {
+      sx[!is.finite(sx)] <- 0 
+    }
   }
-  sx[!is.na(sx)] <- pmin(pmax(sx[!is.na(sx)], 0), 0.9999); sx[!is.finite(sx)] <- 0
+  # convert else NAs to 0
+  sx[!is.finite(sx)] <-0
   
-  if(has_col("fert.mx")) fx <- fert_mx
-  else if(has_col("noffspring") && has_col("Nx")) fx <- noff/Nx
-  else if(has_col("noffspring")) fx <- noff
+  if(has_col("fert.mx") && has_name("fx")) fx <- fert_mx
+  else if(has_col("fert.mx") && has_name("mx")) fx <-fert_mx*sx[1] #converts mx to fx
+  else if(has_col("noffspring") && has_col("Nx") && has_name("fx")) fx <- noff/Nx
+  else if(has_col("noffspring") && has_col("Nx") && has_name("mx")) fx <- sx[1]*noff/Nx
   else stop("No repro info")
   fx[!is.finite(fx)] <- 0
   
+  ##Senescence onset age##
+  senescence_onset_age <- ages[which.max(fx)]
+  half_peak <- 0.5*max(fx, na.rm = TRUE)
+  above_half_peak <- which(fx >= half_peak)
+  early_onset <- ages[min(above_half_peak)]
+  late_onset <- ages[max(above_half_peak)]
   
   dat$sx <- sx; dat$fx <- fx
-  list(data=dat, ages=ages, sx=sx, fx=fx)
+  list(data=dat, 
+       ages=ages, 
+       sx=sx, 
+       fx=fx,
+       senescence_onset_age = senescence_onset_age,
+       early_onset = early_onset,
+       late_onset = late_onset)
 }
 
-## ---------------------------------------------------------
-## Senescence_onset_age
-## ---------------------------------------------------------
-res <- prepare_demography_data_from_df(dat)
-ages <- res$ages
 
-senescence_onset_age <- ages[which.max(res$fx),na.rm = TRUE]
-half_peak <- 0.5*max(res$fx, na.rm = TRUE)
-above_half_peak <- which( fx >= half_peak)
-early_onset <- ages[min(above_half_peak)]
-late_onset <- ages[max(above_half_peak)]
 
 
 ## ---------------------------------------------------------
@@ -177,7 +145,7 @@ build_MPM_senescence <- function(ages, sx, fx) {
 
 # NOTE: Reverted to sx_senescence / fx_senescence to fix your error
 build_MPM_no_senescence <- function(ages, sx_senescence, fx_senescence, senescence_onset_age) {
-  # Internally uses the weighted mean logic, but accepts old arg names
+  # Weighted mean
   w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, senescence_onset_age)
   idx <- which(ages >= senescence_onset_age)
   
@@ -212,24 +180,23 @@ build_MPM_yes_actuarial_no_reproductive <- function(ages, sx_senescence, fx_sene
   build_MPM_senescence(ages, sx_senescence, fx_no)
 }
 
-###DO I STILL NEED THE MIXDIST??###
-compute_summary_table <- function(U_sen, U_no, U_noA_yesR, U_yesA_noR, F_sen, F_no, F_noA_yesR, F_yesA_noR, mix_sen, mix_no, mix_noA_yesR, mix_yesA_noR, repro_var="Poisson") {
+compute_summary_table <- function(U_sen, U_no, U_noA_yesR, U_yesA_noR, F_sen, F_no, F_noA_yesR, F_yesA_noR, repro_var="Poisson") {
   if(!exists("mean_lifespan")) stop("Source LuckFunctions.R first!")
   
-  .get_moments <- function(U, F, mix) {
-    mL <- mean_lifespan(U, mix) 
-    vL <- var_lifespan(U, mix)
-    sL <- skew_lifespan(U, mix)
-    mR <- mean_LRO(U, F, mix)
-    vR <- var_LRO_mcr(U, F, repro_var, mix)
-    sR <- skew_LRO(U, F, repro_var, mix)
+  .get_moments <- function(U, F) {
+    mL <- mean_lifespan(U, mixdist = NULL) 
+    vL <- var_lifespan(U, mixdist = NULL)
+    sL <- skew_lifespan(U, mixdist = NULL)
+    mR <- mean_LRO(U, F, mixdist = NULL)
+    vR <- var_LRO_mcr(U, F, repro_var, mixdist = NULL)
+    sR <- skew_LRO(U, F, repro_var, mixdist = NULL)
     c(mL=as.numeric(mL), vL=as.numeric(vL), sL=as.numeric(sL), mR=as.numeric(mR), vR=as.numeric(vR), sR=as.numeric(sR))
   }
   
-  r1 <- .get_moments(U_sen, F_sen, mix_sen)
-  r2 <- .get_moments(U_no, F_no, mix_no)
-  r3 <- .get_moments(U_noA_yesR, F_noA_yesR, mix_noA_yesR)
-  r4 <- .get_moments(U_yesA_noR, F_yesA_noR, mix_yesA_noR)
+  r1 <- .get_moments(U_sen, F_sen)
+  r2 <- .get_moments(U_no, F_no)
+  r3 <- .get_moments(U_noA_yesR, F_noA_yesR)
+  r4 <- .get_moments(U_yesA_noR, F_yesA_noR)
   
   data.frame(
     model = c("Senescence", "No-senescence", "No-actuarial/Yes-reproductive", "Yes-actuarial/No-reproductive"),

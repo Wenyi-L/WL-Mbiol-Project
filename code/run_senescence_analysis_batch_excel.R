@@ -1,12 +1,13 @@
 ## =========================================================
-## run_senescence_analysis_batch_excel.R
+## run_senescence_analysis_batch_excel.R (Updated 03/03/2026)
 ## Batch analysis for multiple species stored in different
 ## sheets of a single Excel file.
 ##
 ## Updated to use:
-## 1. senescence_compute.R (Data prep, MPM build, Iterative LRO)
+## 1. senescence_compute.R (Data prep, MPM build, lifespandist)
 ## 2. senescence_plots.R   (ggplot2 visualization)
 ## 3. LuckFunctions.R      (Moments calculation)
+## 4. 
 ## =========================================================
 
 rm(list = ls())
@@ -26,38 +27,24 @@ library(exactLTRE)
 ## -------------------------------
 ## Configuration
 ## -------------------------------
-excel_file <- "Jones2014.xls"  # <-- update this if needed
-output_dir <- "output_batch"
-estimate_tail <- TRUE
-tail_k        <- 2
-qcut          <- 0.999
+excel_file <- "data/Jones2014.xls" 
+output_dir <- "Results/senescence analysis"
 
-## Maturity detection options 
-maturity_method <- "logistic50"   # "logistic50" or "absolute"
-auto_min_fx     <- 1e-8
-auto_span       <- 0.5            # loess span for smoothing before logistic fit
-plot_maturity   <- TRUE           # whether to draw/save maturity detection plot
 
-# Function for naming maturity plots
-maturity_plot_filename <- function(species_name) {
-  file.path(output_dir, species_name, paste0(species_name, "_maturity_logistic50.png"))
-}
-
-if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
 ## -------------------------------
 ## Load required functions (UPDATED)
 ## -------------------------------
 # 1. Load Math/Moments functions first
-source("LuckFunctions.R")
+source("code/LuckFunctions.R")
 
-# 2. Load Compute functions (Data prep, MPM, Iterative LRO, Summary Table)
-#    Note: This file contains the efficient 'calcDistLRO_iterative' 
-#    and the wrapper 'calcDistLROPostBreedingNoEnv'
-source("senescence_functions.R")
+# 2. Load Compute functions 
+source("code/senescence_functions.R")
+source("code/distTraitCondR.R")
+source("code/megamatrixFunctionsLRO.R")
 
 # 3. Load Plotting functions (Survival, Fecundity, LS, LRO plots)
-source("senescence_plot.R")
+source("code/senescence_plot.R")
 
 ## -------------------------------
 ## Read all sheet names
@@ -67,11 +54,6 @@ message("Found sheets: ", paste(sheets, collapse = ", "))
 
 all_results <- list()
 
-## -------------------------------
-## Prepare a global PDF for 4-model LRO plots
-## -------------------------------
-global_LRO_pdf <- file.path(output_dir, "all_species_LRO_4models.pdf")
-pdf(global_LRO_pdf, width = 7, height = 5)
 
 ## -------------------------------
 ## Loop over sheets
@@ -83,6 +65,13 @@ for (sh in sheets) {
   message("==============================")
   
   species_name <- sh
+  
+  meta_raw <- try(
+    read_excel(excel_file, sheet = sh, range = "E1", col_names = FALSE),
+    silent = TRUE
+  )
+  study_type <- if (!inherits(meta_raw, "try-error") && nrow(meta_raw) > 0) as.character(meta_raw[[1,1]]) else "Unknown"
+  message("  -> Data type detected: ", study_type) #Obtain the data source type:cohort/period/model
   
   ## ---- Read data (first row contains column names) ----
   df_raw <- try(
@@ -115,22 +104,11 @@ for (sh in sheets) {
     # prepare plot path for maturity (per-species)
     species_dir <- file.path(output_dir, species_name)
     if (!dir.exists(species_dir)) dir.create(species_dir, recursive = TRUE)
-    plot_path_for_species <- maturity_plot_filename(species_name)
     
     demog <- prepare_demography_data_from_df(
       dat              = df,
-      input_type       = "auto",
-      maturity_age     = "auto",
-      estimate_tail    = estimate_tail,
-      tail_k           = tail_k,
-      maturity_method  = maturity_method,
-      auto_min_fx      = auto_min_fx,
-      auto_consecutive = 1,
-      auto_prop_of_max = 0.05,
-      auto_span        = auto_span,
-      plot_maturity    = plot_maturity,
-      plot_path        = if (isTRUE(plot_maturity)) plot_path_for_species else NULL
-    )
+      input_type       = "auto"
+      )
     
     ## Basic validity checks
     if (!any(is.finite(demog$sx))) stop("All sx values are non-finite")
@@ -147,29 +125,23 @@ for (sh in sheets) {
       ages          = demog$ages,
       sx_senescence = mpm_sen$sx,
       fx_senescence = mpm_sen$fx,
-      maturity_age  = demog$maturity_age
+      senescence_onset_age  = demog$senescence_onset_age
     )
     
     mpm_noA_yesR <- build_MPM_no_actuarial_yes_reproductive(
       ages          = demog$ages,
       sx_senescence = mpm_sen$sx,
       fx_senescence = mpm_sen$fx,
-      maturity_age  = demog$maturity_age
+      senescence_onset_age  = demog$senescence_onset_age
     )
     
     mpm_yesA_noR <- build_MPM_yes_actuarial_no_reproductive(
       ages          = demog$ages,
       sx_senescence = mpm_sen$sx,
       fx_senescence = mpm_sen$fx,
-      maturity_age  = demog$maturity_age
+      senescence_onset_age  = demog$senescence_onset_age
     )
     
-    ## Mixing distributions (needed for LuckFunctions)
-    # Note: mixing_distro is in LuckFunctions.R
-    mix_sen      <- mixing_distro(mpm_sen$A,      mpm_sen$F)
-    mix_no       <- mixing_distro(mpm_no$A,       mpm_no$F)
-    mix_noA_yesR <- mixing_distro(mpm_noA_yesR$A, mpm_noA_yesR$F)
-    mix_yesA_noR <- mixing_distro(mpm_yesA_noR$A, mpm_yesA_noR$F)
     
     ## ---- 3. Summary statistics (Using LuckFunctions via senescence_compute) ----
     # This computes moments (Mean, Var, Skew) without simulating distributions
@@ -182,10 +154,6 @@ for (sh in sheets) {
       F_no         = mpm_no$F,
       F_noA_yesR   = mpm_noA_yesR$F,
       F_yesA_noR   = mpm_yesA_noR$F,
-      mix_sen      = mix_sen,
-      mix_no       = mix_no,
-      mix_noA_yesR = mix_noA_yesR,
-      mix_yesA_noR = mix_yesA_noR,
       repro_var    = "Poisson"  # LuckFunctions option
     )
     
@@ -226,10 +194,7 @@ for (sh in sheets) {
     # Using exact matrix method (from senescence_compute)
     p_LS <- plot_lifespan_distributions(
       U_sen   = mpm_sen$U,
-      U_no    = mpm_no$U,
-      mix_sen = mix_sen,
-      mix_no  = mix_no,
-      qcut    = qcut
+      U_no    = mpm_no$U
     )
     ggsave(
       file.path(species_dir, paste0(species_name, "_lifespan_pmf.png")),
@@ -243,10 +208,8 @@ for (sh in sheets) {
     ages <- demog$ages
     
     # max clutch size
-    k_clutch <- 2
-    maxClutchSize <- ceiling(
-      max(fx + k_clutch * sqrt(fx), na.rm = TRUE)
-    )
+    max_fx = max(as.numeric(fx), na.rm=TRUE)
+    maxClutchSize <- qpois(0.999999, max_fx)
     if (maxClutchSize < 5) maxClutchSize <- 5 # Minimum buffer
     
     # survivorship lx
@@ -257,9 +220,8 @@ for (sh in sheets) {
       for (i in 2:n_age) lx[i] <- lx[i-1] * sx[i-1]
     }
     
-    # maturity index
-    mat_age <- demog$maturity_age
-    idx_m <- which.min(abs(ages - mat_age))
+    idx_m <- min(which(fx > 0))
+    if (is.infinite(idx_m)) idx_m <- 1
     
     # expected post-breeding LRO (unconditional estimate for grid sizing)
     expectLRO_post_uncond <- sum(lx[idx_m:n_age] * fx[idx_m:n_age], na.rm = TRUE)
@@ -285,12 +247,9 @@ for (sh in sheets) {
       U_no    = mpm_no$U,
       F_sen   = mpm_sen$F,
       F_no    = mpm_no$F,
-      mix_sen = mix_sen,
-      mix_no  = mix_no,
       maxClutchSize = maxClutchSize,    
       maxLRO        = maxLRO,
-      include_zero  = FALSE,
-      qcut          = qcut
+      include_zero  = TRUE
     )
     
     ggsave(
@@ -308,14 +267,9 @@ for (sh in sheets) {
       F_no         = mpm_no$F,
       F_noA_yesR   = mpm_noA_yesR$F,
       F_yesA_noR   = mpm_yesA_noR$F,
-      mix_sen      = mix_sen,
-      mix_no       = mix_no,
-      mix_noA_yesR = mix_noA_yesR,
-      mix_yesA_noR = mix_yesA_noR,
       maxClutchSize = maxClutchSize,
       maxLRO        = maxLRO,
-      include_zero  = FALSE,
-      qcut          = qcut
+      include_zero  = TRUE
     )
     
     ## Save four-model figure for this species

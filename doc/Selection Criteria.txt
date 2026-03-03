@@ -1,8 +1,26 @@
 Only include wild population：
-so remove C.elegans(done), Daphnia longispina(done), Macrotrachela sp.(done)，Poecilia reticulata(done)，Pediculus humanus(done)，Drosophila melanogaster(done)，Ceratitis capitata(done)，Hydra magnipapillata(done)，Pagurus longicarpus(done)
+so remove C.elegans(done), Daphnia longispina(done), Macrotrachela sp.(done)，Poecilia reticulata(done)，Pediculus humanus(done)，Drosophila melanogaster(done)，Ceratitis capitata(done)，Hydra magnipapillata(done)，Pagurus longicarpus(done)， Leucopsar Rothschildi
 
 
 
 Nx only represents population size instead of individuals in each cohort， cannot access original data so temporary moved from current analysis
 ?Need to contact correspondence authors?
-Apus melba(done), Ficedula albicollis(done), Fulmarus glacialoides(done), 
+Apus melba(done), Ficedula albicollis(done), Fulmarus glacialoides(done)
+
+
+Remove Age from stage (mostly plants): 
+Scots pine (Pinus sylvestris) 
+Agave (Agave marmorata)
+Geonoma orbignyana 
+Dwarf gorse (Ulex minor) 
+White mangrove (Avicennia marina) 
+Great Rhododendron (Rhododendron maximum)
+Hermit crab (Pagurus longicarpus)
+Armed saltbush (Atriplex acanthocarpa)
+Red abalone (Haliotis rufescens)
+Red-legged frog (Rana aurora)
+Viburnum (Viburnum furcatum)
+Red gorgonian (Paramuricea clavata)
+Oarweed (Laminaria digitata)
+Netleaf oak (Quercus rugosa)
+White mangrove (Avicennia marina) 
