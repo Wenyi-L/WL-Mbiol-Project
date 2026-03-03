@@ -11,12 +11,12 @@
 ## ---------------------------------------------------------
 ## Helper 1: Calculate lx-weighted mean for adult rates
 ## ---------------------------------------------------------
-calculate_weighted_adult_means <- function(ages, sx, fx, maturity_age) {
+calculate_weighted_adult_means <- function(ages, sx, fx, senescence_onset_age) {
   k <- length(ages)
   lx <- numeric(k); lx[1] <- 1
   if (k > 1) { for (i in 1:(k-1)) lx[i+1] <- lx[i] * sx[i] }
   
-  idx_adult <- which(ages >= maturity_age)
+  idx_adult <- which(ages >= senescence_onset_age)
   if (length(idx_adult) == 0) idx_adult <- k 
   
   w <- lx[idx_adult]
@@ -111,18 +111,10 @@ calcDistLRO_iterative <- function(U, F, c0_vector, maxClutchSize = 20, maxLRO = 
 
 
 ## ---------------------------------------------------------
-## Helper 4: Detect Maturity (Wait for the new function)
+## Data Prep
 ## ---------------------------------------------------------
-
-
-## ---------------------------------------------------------
-## Data Prep(wait to be fixed after the maturity function is given)
-## ---------------------------------------------------------
-prepare_demography_data_from_df <- function(dat, input_type="auto", maturity_age="auto", estimate_tail=FALSE, 
-                                            maturity_method="wait to be decide",
+prepare_demography_data_from_df <- function(dat, input_type="auto", estimate_tail=FALSE, 
                                             plot_maturity=FALSE, plot_path=NULL, ...) {
-  if(maturity_method[1] == "logistic50") maturity_method <- "logistic"
-  maturity_method <- match.arg(maturity_method, c("logistic", "absolute")) ####FIX THIS AFTER GETTING THE MATURITY FUNCTION####
   if (!("x" %in% names(dat))) stop("Dataset must contain column: x")
   dat <- dat[order(dat$x), ]
   ages <- dat$x; k <- nrow(dat)
@@ -155,19 +147,23 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", maturity_age
   else stop("No repro info")
   fx[!is.finite(fx)] <- 0
   
-  if(is.character(maturity_age) && maturity_age=="auto") {
-    if(maturity_method=="logistic") {
-      res <- detect_maturity_age_logistic(ages, fx, min_fx=auto_min_fx, prob_threshold=maturity_prob)
-      maturity_age_eff <- res
-    } else {
-      idx <- which(fx > auto_min_fx)
-      maturity_age_eff <- if(length(idx)>0) ages[min(idx)] else min(ages)
-    }
-  } else maturity_age_eff <- maturity_age
   
   dat$sx <- sx; dat$fx <- fx
-  list(data=dat, ages=ages, sx=sx, fx=fx, maturity_age=maturity_age_eff)
+  list(data=dat, ages=ages, sx=sx, fx=fx)
 }
+
+## ---------------------------------------------------------
+## Senescence_onset_age
+## ---------------------------------------------------------
+res <- prepare_demography_data_from_df(dat)
+ages <- res$ages
+
+senescence_onset_age <- ages[which.max(res$fx),na.rm = TRUE]
+half_peak <- 0.5*max(res$fx, na.rm = TRUE)
+above_half_peak <- which( fx >= half_peak)
+early_onset <- ages[min(above_half_peak)]
+late_onset <- ages[max(above_half_peak)]
+
 
 ## ---------------------------------------------------------
 ## Model Builders (Removed MIXDIST) 
@@ -180,10 +176,10 @@ build_MPM_senescence <- function(ages, sx, fx) {
 }
 
 # NOTE: Reverted to sx_senescence / fx_senescence to fix your error
-build_MPM_no_senescence <- function(ages, sx_senescence, fx_senescence, maturity_age) {
+build_MPM_no_senescence <- function(ages, sx_senescence, fx_senescence, senescence_onset_age) {
   # Internally uses the weighted mean logic, but accepts old arg names
-  w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, maturity_age)
-  idx <- which(ages >= maturity_age)
+  w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, senescence_onset_age)
+  idx <- which(ages >= senescence_onset_age)
   
   sx_no <- sx_senescence
   sx_no[idx] <- w$sx_mean
@@ -194,9 +190,9 @@ build_MPM_no_senescence <- function(ages, sx_senescence, fx_senescence, maturity
   build_MPM_senescence(ages, sx_no, fx_no)
 }
 
-build_MPM_no_actuarial_yes_reproductive <- function(ages, sx_senescence, fx_senescence, maturity_age) {
-  w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, maturity_age)
-  idx <- which(ages >= maturity_age)
+build_MPM_no_actuarial_yes_reproductive <- function(ages, sx_senescence, fx_senescence, senescence_onset_age) {
+  w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, senescence_onset_age)
+  idx <- which(ages >= senescence_onset_age)
   
   sx_no <- sx_senescence
   sx_no[idx] <- w$sx_mean
@@ -205,9 +201,9 @@ build_MPM_no_actuarial_yes_reproductive <- function(ages, sx_senescence, fx_sene
   build_MPM_senescence(ages, sx_no, fx_senescence)
 }
 
-build_MPM_yes_actuarial_no_reproductive <- function(ages, sx_senescence, fx_senescence, maturity_age) {
-  w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, maturity_age)
-  idx <- which(ages >= maturity_age)
+build_MPM_yes_actuarial_no_reproductive <- function(ages, sx_senescence, fx_senescence, senescence_onset_age) {
+  w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, senescence_onset_age)
+  idx <- which(ages >= senescence_onset_age)
   
   fx_no <- fx_senescence
   fx_no[idx] <- w$fx_mean
