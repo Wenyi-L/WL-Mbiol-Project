@@ -147,7 +147,7 @@ build_MPM_senescence <- function(ages, sx, fx) {
 build_MPM_no_senescence <- function(ages, sx_senescence, fx_senescence, senescence_onset_age) {
   # Weighted mean
   w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, senescence_onset_age)
-  idx <- which(ages >= senescence_onset_age)
+  idx <- which(ages > senescence_onset_age)
   
   sx_no <- sx_senescence
   sx_no[idx] <- w$sx_mean
@@ -160,7 +160,7 @@ build_MPM_no_senescence <- function(ages, sx_senescence, fx_senescence, senescen
 
 build_MPM_no_actuarial_yes_reproductive <- function(ages, sx_senescence, fx_senescence, senescence_onset_age) {
   w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, senescence_onset_age)
-  idx <- which(ages >= senescence_onset_age)
+  idx <- which(ages > senescence_onset_age)
   
   sx_no <- sx_senescence
   sx_no[idx] <- w$sx_mean
@@ -171,7 +171,7 @@ build_MPM_no_actuarial_yes_reproductive <- function(ages, sx_senescence, fx_sene
 
 build_MPM_yes_actuarial_no_reproductive <- function(ages, sx_senescence, fx_senescence, senescence_onset_age) {
   w <- calculate_weighted_adult_means(ages, sx_senescence, fx_senescence, senescence_onset_age)
-  idx <- which(ages >= senescence_onset_age)
+  idx <- which(ages > senescence_onset_age)
   
   fx_no <- fx_senescence
   fx_no[idx] <- w$fx_mean
