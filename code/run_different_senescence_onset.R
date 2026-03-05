@@ -21,7 +21,7 @@ library(scales)
 ## 1. Setup Environment
 ## -------------------------------
 excel_file <- "data/Jones2014.xls" 
-output_dir <- "Results/summary figures"
+output_dir <- "Results/sensitivity analysis"
 species_plots_dir <- file.path("Results/sensitivity analysis/species_diagnostic_plots")
 
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
@@ -140,7 +140,7 @@ for (sh in sheets) {
   }
   
   # Diagnostic plots for each species
-  if (!is.null(species_vectors$Sen) && length(species_vectors) >= 3) {
+  if (!is.null(species_vectors$sen) && length(species_vectors) >= 3) {
     spec_dir <- file.path(species_plots_dir, gsub(" ", "_", sh))
     if (!dir.exists(spec_dir)) dir.create(spec_dir)
     
@@ -149,24 +149,24 @@ for (sh in sheets) {
     diag_df <- data.frame(Age = species_vectors$sen$ages, sx_sen = species_vectors$sen$sx, fx_sen = species_vectors$sen$fx,
                           sx_no_peak = species_vectors$no_peak$sx, fx_no_peak = species_vectors$no_peak$fx,
                           sx_early = species_vectors$no_early$sx, fx_early = species_vectors$no_early$fx,
-                          sx_late = species_vectors$no_late$sx, fx_no_peak = species_vectors$no_late$fx,)
+                          sx_late = species_vectors$no_late$sx, fx_late = species_vectors$no_late$fx)
     
     p_sx <- ggplot(diag_df, aes(x = Age)) +
       geom_line(aes(y = sx_sen, color = "Senescence"), size = 1.2) +
       geom_line(aes(y = sx_no_peak, color = "No Peak"),size=1.2) +
-      geom_line(aes(y = sx_no_early, color = "No Early"), size = 1.2) +
-      geom_line(aes(y = sx_no_late, color = "No Late"), size = 1.2) + theme_bw() + labs(title = paste(sh, "sx"))
+      geom_line(aes(y = sx_early, color = "No Early"), size = 1.2) +
+      geom_line(aes(y = sx_late, color = "No Late"), size = 1.2) + theme_bw() + labs(title = paste(sh, "sx"))
     
     p_fx <- ggplot(diag_df, aes(x = Age)) +
       geom_line(aes(y = fx_sen, color = "Senescence"), size = 1.2) +
       geom_line(aes(y = fx_no_peak, color = "No Peak"),size=1.2) +
-      geom_line(aes(y = fx_no_early, color = "No Early"), size = 1.2) +
-      geom_line(aes(y = fx_no_late, color = "No Late"), size = 1.2) +  theme_bw() + labs(title = paste(sh, "fx"))
+      geom_line(aes(y = fx_early, color = "No Early"), size = 1.2) +
+      geom_line(aes(y = fx_late, color = "No Late"), size = 1.2) +  theme_bw() + labs(title = paste(sh, "fx"))
     
     ggsave(file.path(spec_dir, "sx_compare.png"), p_sx, width = 6, height = 4)
     ggsave(file.path(spec_dir, "fx_compare.png"), p_fx, width = 6, height = 4)
   }
-}
+} ##<--- end of the FOR loop
 
 ## -------------------------------
 ## 4. Compile Results & Export
@@ -174,113 +174,131 @@ for (sh in sheets) {
 all_res <- do.call(rbind, comparison_results)
 # Calculate percentage change relative to Senescence
 df_relative <- all_res %>%
-  select(species, model, mean_lifespan, var_lifespan,skew_lifespan,mean_LRO, var_LRO, skew_LRO) %>%
-  pivot_wider(names_from = model, values_from = c(mean_lifespan, var_lifespan,skew_lifespan,mean_LRO, var_LRO, skew_LRO)) %>%
+  select(species, model, mean_lifespan, var_lifespan, skew_lifespan, mean_LRO, var_LRO, skew_LRO) %>%
+  pivot_wider(names_from = model, values_from = c(mean_lifespan, var_lifespan, skew_lifespan, mean_LRO, var_LRO, skew_LRO)) %>%
   mutate(
-    # NOTE: Using backticks (`) to handle hyphens and slashes in column names
+    ##------------------
+    ##  A. Lifespan 
+    ##------------------
+    # 1. No-senescence-peak vs Senescence
+    pct_diff_NoPeak_Mean_Lifespan = (mean_lifespan_Senescence - `mean_lifespan_No-senescence-peak`) / mean_lifespan_Senescence,
+    pct_diff_NoPeak_Var_Lifespan  = (var_lifespan_Senescence - `var_lifespan_No-senescence-peak`)  / var_lifespan_Senescence,
+    pct_diff_NoPeak_Skew_Lifespan = (skew_lifespan_Senescence - `skew_lifespan_No-senescence-peak`) / skew_lifespan_Senescence,
     
-    # 1. No-senescence vs Senescence
-    pct_diff_NoSen_Mean = (`mean_LRO_No-senescence` - mean_LRO_Senescence) / mean_LRO_Senescence,
-    pct_diff_NoSen_Var  = (`var_LRO_No-senescence` - var_LRO_Senescence)  / var_LRO_Senescence,
-    pct_diff_NoSen_Skew = (`skew_LRO_No-senescence` - skew_LRO_Senescence) / skew_LRO_Senescence,
+    # 2. Early onset vs Senescence
+    pct_diff_NoEarly_Mean_Lifespan = (mean_lifespan_Senescence - `mean_lifespan_No-senescence-early`) / mean_lifespan_Senescence,
+    pct_diff_NoEarly_Var_Lifespan  = (var_lifespan_Senescence - `var_lifespan_No-senescence-early`)  / var_lifespan_Senescence,
+    pct_diff_NoEarly_Skew_Lifespan = (skew_lifespan_Senescence - `skew_lifespan_No-senescence-early`) / skew_lifespan_Senescence,
     
-    # 2. No-Actuarial vs Senescence
-    pct_diff_NoAct_Mean = (`mean_LRO_No-actuarial/Yes-reproductive` - mean_LRO_Senescence) / mean_LRO_Senescence,
-    pct_diff_NoAct_Var  = (`var_LRO_No-actuarial/Yes-reproductive`  - var_LRO_Senescence)  / var_LRO_Senescence,
-    pct_diff_NoAct_Skew = (`skew_LRO_No-actuarial/Yes-reproductive` - skew_LRO_Senescence) / skew_LRO_Senescence,
+    # 3. Late onset vs Senescence
+    pct_diff_NoLate_Mean_Lifespan = (mean_lifespan_Senescence - `mean_lifespan_No-senescence-late`) / mean_lifespan_Senescence,
+    pct_diff_NoLate_Var_Lifespan  = (var_lifespan_Senescence - `var_lifespan_No-senescence-late`)  / var_lifespan_Senescence,
+    pct_diff_NoLate_Skew_Lifespan = (skew_lifespan_Senescence - `skew_lifespan_No-senescence-late`) / skew_lifespan_Senescence,
     
-    # 3. Yes-Actuarial (No-Repro) vs Senescence
-    pct_diff_NoRep_Mean = (`mean_LRO_Yes-actuarial/No-reproductive` - mean_LRO_Senescence) / mean_LRO_Senescence,
-    pct_diff_NoRep_Var  = (`var_LRO_Yes-actuarial/No-reproductive`  - var_LRO_Senescence)  / var_LRO_Senescence,
-    pct_diff_NoRep_Skew = (`skew_LRO_Yes-actuarial/No-reproductive` - skew_LRO_Senescence) / skew_LRO_Senescence
+    ##------------------
+    ##  B. LRO
+    ##------------------
+    # 1. No-senescence-peak vs Senescence
+    pct_diff_NoPeak_Mean_LRO = (mean_LRO_Senescence - `mean_LRO_No-senescence-peak`) / mean_LRO_Senescence,
+    pct_diff_NoPeak_Var_LRO  = (var_LRO_Senescence - `var_LRO_No-senescence-peak`)  / var_LRO_Senescence,
+    pct_diff_NoPeak_Skew_LRO = (skew_LRO_Senescence - `skew_LRO_No-senescence-peak`) / skew_LRO_Senescence,
+    
+    # 2. Early onset vs Senescence
+    pct_diff_NoEarly_Mean_LRO = (mean_LRO_Senescence - `mean_LRO_No-senescence-early`) / mean_LRO_Senescence,
+    pct_diff_NoEarly_Var_LRO  = (var_LRO_Senescence - `var_LRO_No-senescence-early`)  / var_LRO_Senescence,
+    pct_diff_NoEarly_Skew_LRO = (skew_LRO_Senescence - `skew_LRO_No-senescence-early`) / skew_LRO_Senescence,
+    
+    # 3. Late onset vs Senescence
+    pct_diff_NoLate_Mean_LRO = (mean_LRO_Senescence - `mean_LRO_No-senescence-late`) / mean_LRO_Senescence,
+    pct_diff_NoLate_Var_LRO  = (var_LRO_Senescence - `var_LRO_No-senescence-late`)  / var_LRO_Senescence,
+    pct_diff_NoLate_Skew_LRO = (skew_LRO_Senescence - `skew_LRO_No-senescence-late`) / skew_LRO_Senescence
   ) %>%
+  # Extract the calculated difference columns for reshaping
   select(species, starts_with("pct_diff")) %>%
   pivot_longer(cols = -species, names_to = "comparison", values_to = "pct_change") %>%
-  separate(comparison, into = c("dummy", "dummy2", "Model_Code", "Metric_Code"), sep = "_") %>%
+  # Split column names exactly into 5 parts: pct, diff, Model_Code, Metric_Code, Trait_Code
+  separate(comparison, into = c("dummy", "dummy2", "Model_Code", "Metric_Code", "Trait_Code"), sep = "_") %>%
   select(-dummy, -dummy2) %>%
   mutate(
     # Convert to percentage values
     pct_change = pct_change * 100,
+    
     # Map back to full model names
     Model = case_when(
-      Model_Code == "NoSen" ~ "No-senescence",
-      Model_Code == "NoAct" ~ "No-actuarial/Yes-reproductive",
-      Model_Code == "NoRep" ~ "Yes-actuarial/No-reproductive"
+      Model_Code == "NoPeak"  ~ "No-senescence-peak",
+      Model_Code == "NoEarly" ~ "No-senescence-early",
+      Model_Code == "NoLate"  ~ "No-senescence-late"
     ),
+    
+    # Reconstruct full metric names (e.g., combine "Mean" and "Lifespan")
     Metric = case_when(
-      Metric_Code == "Mean" ~ "Mean LRO",
-      Metric_Code == "Var"  ~ "Variance LRO",
-      Metric_Code == "Skew" ~ "Skewness LRO"
+      Metric_Code == "Mean" ~ paste("Mean", Trait_Code),
+      Metric_Code == "Var"  ~ paste("Variance", Trait_Code),
+      Metric_Code == "Skew" ~ paste("Skewness", Trait_Code)
     ),
-    # Set factor levels for plotting order
-    Model = factor(Model, levels = c("No-senescence", "No-actuarial/Yes-reproductive", "Yes-actuarial/No-reproductive")),
-    Metric = factor(Metric, levels = c("Mean LRO", "Variance LRO", "Skewness LRO"))
+    
+    # Set factor levels for correct plotting order
+    Model = factor(Model, levels = c("No-senescence-peak", "No-senescence-early", "No-senescence-late")),
+    Metric = factor(Metric, levels = c(
+      "Mean Lifespan", "Variance Lifespan", "Skewness Lifespan", 
+      "Mean LRO", "Variance LRO", "Skewness LRO"
+    ))
   )
 
-write.csv(df_diff, file.path(output_dir, "methodology_full_results.csv"), row.names = FALSE)
+write.csv(df_relative, file.path(output_dir, "methodology_full_results.csv"), row.names = FALSE)
 
 ## -------------------------------
 ## 5. Summary Plots with Improved Visuals
 ## -------------------------------
-df_plot <- df_diff %>%
-  select(species, Class, Method, starts_with("Diff_")) %>%
-  pivot_longer(cols = starts_with("Diff_"), names_to = "Metric", values_to = "Value") %>%
-  mutate(Metric_Type = ifelse(grepl("Lifespan", Metric), "Lifespan", "LRO"),
-         Metric_Label = case_when(Metric == "Diff_Mean_Lifespan" ~ "Mean Lifespan",
-                                  Metric == "Diff_Var_Lifespan"  ~ "Variance Lifespan",
-                                  Metric == "Diff_Skew_Lifespan" ~ "Skewness Lifespan",
-                                  Metric == "Diff_Mean_LRO"      ~ "Mean LRO",
-                                  Metric == "Diff_Var_LRO"       ~ "Variance LRO",
-                                  Metric == "Diff_Skew_LRO"      ~ "Skewness LRO"))
+df_plot <- df_relative %>%
+  select(species, Model, Metric, Trait_Code, pct_change)
 
 create_comparison_plot <- function(data_subset, title_suffix) {
-  # Select sensitive species for labels
-  df_sensitive <- data_subset %>% filter(abs(Value) > 0.5)
-  df_labels_left <- df_sensitive %>% filter(Method == "Logistic_50")
   
-  ggplot(data_subset, aes(x = Method, y = Value)) +
+  # x-axis is now mapped to 'Model' and y-axis to 'pct_change'
+  ggplot(data_subset, aes(x = Model, y = pct_change)) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-    geom_violin(aes(fill = Method), alpha = 0.2, color = NA) +
+    
+    # Violin and boxplots
+    geom_violin(aes(fill = Model), alpha = 0.2, color = NA) +
     geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) +
     
-    # Lines for Taxonomic Class (This is the source for the color legend)
-    geom_line(aes(group = species, color = Class), alpha = 0.4) + 
+    # Facet by specific metrics (Mean, Variance, Skewness)
+    facet_wrap(~Metric, scales = "free_y", ncol = 3) +
     
-    # Points - show.legend = FALSE to prevent shapes from appearing in the Class legend
-    geom_point(alpha = 0.2, shape = 16, size = 1, show.legend = FALSE) +
+    # The data is already in percentage format (multiplied by 100), 
+    # so no need to multiply by 100 here. Just round it and add '%'. 
+    # Sigma is set to 10 for better visualization on the percentage scale.
+    scale_y_continuous(trans = scales::pseudo_log_trans(base = 10, sigma = 10),
+                       labels = function(x) paste0(round(x), "%")) +
     
-    # Sensitive Points as Triangles - show.legend = FALSE to keep legend as lines
-    geom_point(data = df_sensitive, aes(color = Class), shape = 17, size = 3, show.legend = FALSE) +
-    
-    # Species labels (Left side only)
-    geom_text(data = df_labels_left, aes(label = species), 
-              size = 2.5, hjust = 1.1, nudge_x = -0.05) +
-    
-    facet_wrap(~Metric_Label, scales = "free_y", ncol = 3) +
-    scale_y_continuous(trans = scales::pseudo_log_trans(base = 10, sigma = 0.1),
-                       labels = function(x) paste0(round(x * 100), "%")) +
-    
-    # scale_x_discrete expand: adds space on the left side for labels
-    scale_x_discrete(expand = expansion(mult = c(0.4, 0.1))) +
-    
-    scale_fill_manual(values = c("Logistic_50" = "#56B4E9", "Peak_Fertility" = "#E69F00")) +
+    # Updated to match the current three model names
+    scale_fill_manual(values = c("No-senescence-peak"  = "#56B4E9", 
+                                 "No-senescence-early" = "#E69F00",
+                                 "No-senescence-late"  = "#009E73")) +
     theme_bw(base_size = 12) +
     
-    # clip = "off": ensures text outside the panel remains visible
     coord_cartesian(clip = "off") +
     
     labs(title = paste("Methodological Sensitivity:", title_suffix),
-         subtitle = "Triangles: >50% Diff | Labels: Left-side only | Legend: Lines for Taxon",
-         y = "Relative Difference (Sen - NoSen)/Sen", x = "", color = "Taxonomic Class") +
+         subtitle = "Distributions of relative differences",
+         y = "Relative Difference (%)", 
+         x = "", 
+         fill = "Model") +
+    
     theme(legend.position = "bottom", 
           plot.title = element_text(face="bold"),
-          plot.margin = margin(10, 10, 10, 60)) # Extra left margin for long names
+          # Left margin reduced to 10 since there are no left-aligned labels anymore
+          plot.margin = margin(10, 10, 10, 10), 
+          # Slightly tilt x-axis text to prevent overlapping
+          axis.text.x = element_text(angle = 15, hjust = 1)) 
 }
 
-p_life <- create_comparison_plot(df_plot %>% filter(Metric_Type == "Lifespan"), "Lifespan")
-p_lro  <- create_comparison_plot(df_plot %>% filter(Metric_Type == "LRO"), "LRO")
+# Use Trait_Code instead of Metric_Type for filtering
+p_life <- create_comparison_plot(df_plot %>% filter(Trait_Code == "Lifespan"), "Lifespan")
+p_lro  <- create_comparison_plot(df_plot %>% filter(Trait_Code == "LRO"), "LRO")
 
-ggsave(file.path(output_dir, "Summary_Lifespan_Final_Fixed.png"), p_life, width = 14, height = 7)
-ggsave(file.path(output_dir, "Summary_LRO_Final_Fixed.png"), p_lro, width = 14, height = 7)
+ggsave(file.path("Results/summary figures", "Summary_Lifespan_onset_of_senescence.png"), p_life, width = 14, height = 7)
+ggsave(file.path("Results/summary figures","Summary_LRO_Final_onset_of_senescence.png"), p_lro, width = 14, height = 7)
 
-message("Done! Files saved to: ", output_dir)
+message("Done! Files saved to: ", "Results/summary figures")

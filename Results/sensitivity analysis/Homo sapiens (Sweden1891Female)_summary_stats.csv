@@ -1,0 +1,5 @@
+"model","mean_lifespan","var_lifespan","skew_lifespan","mean_LRO","var_LRO","skew_LRO","species","sheet"
+"Senescence",53.0409199550024,943.95512793544,-0.604530356325651,2.97770959084504,6.12162077317264,0.457794352811937,"Homo sapiens (Sweden1891Female)","Homo sapiens (Sweden1891Female)"
+"No-senescence-peak",53.593684943625,1912.50415138665,1.42973395498207,3.1289285987253,10.8123440680247,1.54700524661893,"Homo sapiens (Sweden1891Female)","Homo sapiens (Sweden1891Female)"
+"No-senescence-early",53.6063079827606,2237.62533051908,1.66411119968297,3.05915517935898,15.5986090380858,2.12094574728865,"Homo sapiens (Sweden1891Female)","Homo sapiens (Sweden1891Female)"
+"No-senescence-late",53.5308317597035,1501.8938596154,0.926499718850914,3.06031180214466,6.52276894715594,0.48413221016208,"Homo sapiens (Sweden1891Female)","Homo sapiens (Sweden1891Female)"
