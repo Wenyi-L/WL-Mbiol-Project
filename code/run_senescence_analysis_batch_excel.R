@@ -52,12 +52,14 @@ source("code/senescence_plot.R")
 sheets <- excel_sheets(excel_file)
 message("Found sheets: ", paste(sheets, collapse = ", "))
 
-all_results <- list()
+all_results <- list() #store results
 
 
 ## -------------------------------
-## Loop over sheets
+## Loop over sheets (Calculations)
 ## -------------------------------
+
+
 for (sh in sheets) {
   
   message("\n==============================")
@@ -71,16 +73,11 @@ for (sh in sheets) {
     silent = TRUE
   )
   study_type <- if (!inherits(meta_raw, "try-error") && nrow(meta_raw) > 0) as.character(meta_raw[[1,1]]) else "Unknown"
-  message("  -> Data type detected: ", study_type) #Obtain the data source type:cohort/period/model
+  message("  -> Data type detected: ", study_type)
   
-  ## ---- Read data (first row contains column names) ----
+  ## ---- Read data ----
   df_raw <- try(
-    read_excel(
-      excel_file,
-      sheet     = sh,
-      skip      = 1,
-      col_names = TRUE
-    ),
+    read_excel(excel_file, sheet = sh, skip = 1, col_names = TRUE),
     silent = TRUE
   )
   
@@ -100,51 +97,23 @@ for (sh in sheets) {
   ## Attempt full demographic analysis
   ## -------------------------------
   res <- try({
-    ## ---- 1. Prepare demographic inputs ----
-    # prepare plot path for maturity (per-species)
-    species_dir <- file.path(output_dir, species_name)
-    if (!dir.exists(species_dir)) dir.create(species_dir, recursive = TRUE)
+    ## 1. Prepare demographic inputs
+    demog <- prepare_demography_data_from_df(dat = df, input_type = "auto")
     
-    demog <- prepare_demography_data_from_df(
-      dat              = df,
-      input_type       = "auto"
-      )
+    # Source shield: Cap the maximum survival rate to avoid exact 1.0
+    demog$sx[demog$sx >= 1] <- 0.9999 
     
     ## Basic validity checks
     if (!any(is.finite(demog$sx))) stop("All sx values are non-finite")
     if (!any(is.finite(demog$fx))) stop("All fx values are non-finite")
     
-    ## ---- 2. Build MPMs for four senescence scenarios ----
-    mpm_sen <- build_MPM_senescence(
-      ages = demog$ages,
-      sx   = demog$sx,
-      fx   = demog$fx
-    )
+    ## 2. Build MPMs for four senescence scenarios
+    mpm_sen <- build_MPM_senescence(ages = demog$ages, sx = demog$sx, fx = demog$fx)
+    mpm_no <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    mpm_noA_yesR <- build_MPM_no_actuarial_yes_reproductive(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    mpm_yesA_noR <- build_MPM_yes_actuarial_no_reproductive(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
     
-    mpm_no <- build_MPM_no_senescence(
-      ages          = demog$ages,
-      sx_senescence = mpm_sen$sx,
-      fx_senescence = mpm_sen$fx,
-      senescence_onset_age  = demog$senescence_onset_age
-    )
-    
-    mpm_noA_yesR <- build_MPM_no_actuarial_yes_reproductive(
-      ages          = demog$ages,
-      sx_senescence = mpm_sen$sx,
-      fx_senescence = mpm_sen$fx,
-      senescence_onset_age  = demog$senescence_onset_age
-    )
-    
-    mpm_yesA_noR <- build_MPM_yes_actuarial_no_reproductive(
-      ages          = demog$ages,
-      sx_senescence = mpm_sen$sx,
-      fx_senescence = mpm_sen$fx,
-      senescence_onset_age  = demog$senescence_onset_age
-    )
-    
-    
-    ## ---- 3. Summary statistics (Using LuckFunctions via senescence_compute) ----
-    # This computes moments (Mean, Var, Skew) without simulating distributions
+    ## 3. Summary statistics
     summary_df <- compute_summary_table(
       U_sen        = mpm_sen$U,
       U_no         = mpm_no$U,
@@ -154,16 +123,112 @@ for (sh in sheets) {
       F_no         = mpm_no$F,
       F_noA_yesR   = mpm_noA_yesR$F,
       F_yesA_noR   = mpm_yesA_noR$F,
-      repro_var    = "Poisson"  # LuckFunctions option
+      repro_var    = "Poisson"  
     )
     
     summary_df$species <- species_name
     summary_df$sheet   <- sh
     
+    summary_df 
+  }, silent = TRUE) #<- end of try()
+  
+  
+    ## 4. Save section (outside try() but inside for() )
+ 
+  if (!inherits(res, "try-error")) {
+    message("  -> OK: added species ", species_name)
+    
+    # 1. Save 'res' into the global list using species_name as the key
+    all_results[[species_name]] <- res
+    
+    # 2. Save individual CSV for this species
+    write.csv(
+      res,
+      file = file.path(output_dir, paste0(species_name, "_summary_stats.csv")),
+      row.names = FALSE
+    )
+  } else {
+    message("  -> ERROR on species ", species_name)
+  }
+  
+} # <--- END of the for loop! 
+
+
+## -------------------------------
+## Combine global summary table
+## -------------------------------
+if (length(all_results) == 0) {
+  warning("No species produced valid summary results. No global summary created.")
+} else {
+  global_df <- do.call(rbind, all_results)
+  write.csv(
+    global_df,
+    file = file.path(output_dir, "all_species_summary_stats.csv"),
+    row.names = FALSE
+  )
+  message("\nGlobal summary saved successfully.")
+}
+
+
+    
     ## -------------------------------
-    ## ---- 4. Plotting routines ----
+    ## ---- Plotting ----
     ## -------------------------------
-    species_dir <- file.path(output_dir, species_name)
+  
+
+for (sh in sheets) {
+  
+  message("\n==============================")
+  message("Processing sheet: ", sh)
+  message("==============================")
+  
+  species_name <- sh
+  
+  meta_raw <- try(
+    read_excel(excel_file, sheet = sh, range = "E1", col_names = FALSE),
+    silent = TRUE
+  )
+  study_type <- if (!inherits(meta_raw, "try-error") && nrow(meta_raw) > 0) as.character(meta_raw[[1,1]]) else "Unknown"
+  message("  -> Data type detected: ", study_type)
+  
+  ## ---- Read data ----
+  df_raw <- try(
+    read_excel(excel_file, sheet = sh, skip = 1, col_names = TRUE),
+    silent = TRUE
+  )
+  
+  if (inherits(df_raw, "try-error")) {
+    message("  -> ERROR reading sheet: ", sh)
+    next
+  }
+  
+  df <- as.data.frame(df_raw)
+  
+  if (!("x" %in% names(df))) {
+    message("  -> SKIP: sheet ", sh, " has no 'x' column.")
+    next
+  }
+  
+  ## -------------------------------
+  ## Attempt full demographic analysis
+  ## -------------------------------
+  res <- try({
+    ## 1. Prepare demographic inputs
+    demog <- prepare_demography_data_from_df(dat = df, input_type = "auto")
+    
+    # Source shield: Cap the maximum survival rate to avoid exact 1.0
+    demog$sx[demog$sx >= 1] <- 0.9999 
+    
+    ## Basic validity checks
+    if (!any(is.finite(demog$sx))) stop("All sx values are non-finite")
+    if (!any(is.finite(demog$fx))) stop("All fx values are non-finite")
+    
+    ## 2. Build MPMs for four senescence scenarios
+    mpm_sen <- build_MPM_senescence(ages = demog$ages, sx = demog$sx, fx = demog$fx)
+    mpm_no <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    mpm_noA_yesR <- build_MPM_no_actuarial_yes_reproductive(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    mpm_yesA_noR <- build_MPM_yes_actuarial_no_reproductive(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    
     if (!dir.exists(species_dir)) dir.create(species_dir, recursive = TRUE)
     
     ## 4a. Survival (senescence vs no-senescence)
@@ -237,8 +302,9 @@ for (sh in sheets) {
     if (is.na(expectLRO_post_cond) || expectLRO_post_cond == 0) expectLRO_post_cond <- 1
     
     # max LRO support (heuristic for plotting limit)
-    maxLRO <- ceiling(5 * expectLRO_post_cond)
+    maxLRO <- ceiling(3 * expectLRO_post_cond)
     if (maxLRO < 20) maxLRO <- 20
+    if (maxLRO > 100) maxLRO <- 100
     
     ## 4c-1. LRO: two-model comparison (analytical iterative, post-breeding)
     # This now uses the efficient calcDistLRO_iterative inside plotting function
@@ -277,12 +343,8 @@ for (sh in sheets) {
       file.path(species_dir, paste0(species_name, "_LRO_pmf_4models.png")),
       p_LRO4, width = 7, height = 5, dpi = 300, bg = "white"
     )
+  }) # <--- end of try()
     
-    ## Append to global multi-page PDF
-    print(p_LRO4)
-    
-    summary_df
-  }, silent = TRUE)
   
   ## -----------------------------------
   ## Error handling
@@ -292,35 +354,15 @@ for (sh in sheets) {
     message("     ", conditionMessage(attr(res, "condition")))
     next
   }
+  } # <--- end of loop
   
-  ## -----------------------------------
-  ## Successful species
-  ## -----------------------------------
-  message("  -> OK: added species ", species_name)
-  all_results[[length(all_results) + 1]] <- res
   
-  ## Save per-species summary table
-  write.csv(
-    res,
-    file = file.path(output_dir, paste0(species_name, "_summary_stats.csv")),
-    row.names = FALSE
-  )
-}
-
-## Close the global 4-model LRO PDF
-dev.off()
-
-## -------------------------------
-## Combine global summary table
-## -------------------------------
-if (length(all_results) == 0) {
-  warning("No species produced valid summary results. No global summary created.")
-} else {
-  global_df <- do.call(rbind, all_results)
-  write.csv(
-    global_df,
-    file = file.path(output_dir, "all_species_summary_stats.csv"),
-    row.names = FALSE
-  )
-  message("\nGlobal summary saved.")
-}
+  
+  
+  
+  
+  
+  
+  
+  
+  

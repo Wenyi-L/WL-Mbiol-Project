@@ -1,0 +1,5 @@
+"model","mean_lifespan","var_lifespan","skew_lifespan","mean_LRO","var_LRO","skew_LRO","species","sheet"
+"Senescence",86.5393775228284,198.493322845033,-2.26117334418987,1.30595116397777,1.32177296201405,0.878144679954493,"Homo sapiens (Japan2009Female)","Homo sapiens (Japan2009Female)"
+"No-senescence",87.3881749027329,3237.36805831182,1.97364336027343,1.39178531439005,1.86198470608907,1.34214703005116,"Homo sapiens (Japan2009Female)","Homo sapiens (Japan2009Female)"
+"No-actuarial/Yes-reproductive",87.3881749027329,3237.36805831182,1.97364336027343,1.27206711050106,1.29681774985494,0.897897604402755,"Homo sapiens (Japan2009Female)","Homo sapiens (Japan2009Female)"
+"Yes-actuarial/No-reproductive",86.5393775228284,198.493322845033,-2.26117334418987,1.38165801162042,1.41916535051448,0.868552190266116,"Homo sapiens (Japan2009Female)","Homo sapiens (Japan2009Female)"

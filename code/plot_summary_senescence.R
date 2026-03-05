@@ -7,9 +7,8 @@ rm(list = ls())
 ## -------------------------------
 ## 0. Configuration
 ## -------------------------------
-excel_file   <- "Jones2014.xls"
-summary_file <- "output_batch/all_species_summary_stats.csv"
-fig_dir      <- "summary_figures_comparison_v8"
+summary_file <- "Results/senescence analysis/all_species_summary_stats.csv"
+fig_dir      <- "Results/summary figures"
 
 if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE)
 
@@ -22,27 +21,9 @@ library(ggplot2)
 library(scales)
 library(readxl)
 
-## -------------------------------
-## 2. Metadata Extraction
-## -------------------------------
-if (!file.exists(excel_file)) {
-  stop(paste("Error: File not found:", excel_file))
-}
-
-message("Fetching metadata from ", excel_file, "...")
-sheets <- excel_sheets(excel_file)
-metadata_list <- list()
-
-for (sh in sheets) {
-  class_val <- suppressMessages(
-    as.character(read_excel(excel_file, sheet = sh, range = "D1:D1", col_names = FALSE)[1,1])
-  )
-  metadata_list[[length(metadata_list) + 1]] <- data.frame(species = sh, Class = class_val)
-}
-df_metadata <- do.call(rbind, metadata_list)
 
 ## -------------------------------
-## 3. Data Processing & Grouping
+## 2. Data Processing & Grouping
 ## -------------------------------
 if (!file.exists(summary_file)) {
   stop(paste("Error: File not found:", summary_file))
@@ -51,10 +32,10 @@ if (!file.exists(summary_file)) {
 df <- read.csv(summary_file, stringsAsFactors = FALSE)
 
 # Calculate Percentage Difference #No longer calculate absolute percentage difference
-df_diff <- df_merged %>%
+df_diff <- df %>%
   filter(model %in% c("Senescence", "No-senescence")) %>%
-  select(species, Group, model, mean_lifespan, var_lifespan, skew_lifespan, mean_LRO, var_LRO, skew_LRO) %>%
-  pivot_longer(cols = -c(species, Group, model), names_to = "metric", values_to = "value") %>%
+  select(species,model, mean_lifespan, var_lifespan, skew_lifespan, mean_LRO, var_LRO, skew_LRO) %>%
+  pivot_longer(cols = -c(species, model), names_to = "metric", values_to = "value") %>%
   pivot_wider(names_from = model, values_from = value) %>%
   mutate(
     perc_diff = ifelse(
@@ -63,29 +44,34 @@ df_diff <- df_merged %>%
       100 * (Senescence - `No-senescence`) / Senescence)
   )
 
-
 ## -------------------------------
 ## 4. Plotting Function
 ## -------------------------------
+
+my_greens <- c(
+  "#B4EEB4", #DarkSeaGreen2
+  "#9ACD32",  # YellowGreen 
+  "#3CB371" # MediumSeaGreen 
+)
 create_comparison_plot <- function(data, title, filename) {
   
   dodge_w <- 0.8
   
-  p <- ggplot(data, aes(x = metric_label, y = perc_diff, fill = Group)) +
+  p <- ggplot(data, aes(x = metric, y = perc_diff)) +
     
     # --- Layer 1: Violin (Background Color) ---
     geom_violin(
       position = position_dodge(width = dodge_w),
       scale = "width",
       trim = FALSE,
-      alpha = 0.5,       # Slightly more opaque to show the yellow/green better
+      alpha = 0.5,       
       color = NA,
-      aes(fill = model)
+      aes(fill = metric)
     ) +
     
     # --- Layer 2: Boxplot (Transparent Fill) ---
     geom_boxplot(
-      aes(group = interaction(metric_label, Group)), 
+      aes(group = metric), 
       width = 0.2,
       position = position_dodge(width = dodge_w),
       outlier.shape = NA,
@@ -96,16 +82,20 @@ create_comparison_plot <- function(data, title, filename) {
     
     # --- Layer 3: Jitter Points (Darker Colors) ---
     geom_point(
-      aes(color = Group),
+      aes(color = metric),
       position = position_jitterdodge(dodge.width = dodge_w, jitter.width = 0.2),
       size = 1.2, 
       alpha = 0.8
     ) +
     
+    #Colour
+    scale_fill_manual(values = my_greens) +
+    scale_color_manual(values = my_greens) +
+    
     # Scales
     scale_y_continuous(
       trans = scales::pseudo_log_trans(base = 10, sigma = 1),
-      breaks = c(0, 1, 10, 100, 1000, 10000),
+      breaks = c(-10000, -1000, -100, -10, -1, 0, 1, 10, 100, 1000, 10000),
       labels = scales::comma_format()
     ) +
     
@@ -132,12 +122,10 @@ create_comparison_plot <- function(data, title, filename) {
 ## 6. Generate Plots
 ## -------------------------------
 
-message("Generating plots with Green(Plant) and Yellow(Animal)...")
-
 # A. Lifespan Comparison
 df_LS <- df_diff %>%
   filter(metric %in% c("mean_lifespan", "var_lifespan", "skew_lifespan")) %>%
-  mutate(metric_label = factor(metric, 
+  mutate(metric = factor(metric, 
                                levels = c("mean_lifespan", "var_lifespan", "skew_lifespan"),
                                labels = c("Mean", "Variance", "Skewness"))) %>%
   filter(!is.na(perc_diff))
@@ -147,7 +135,7 @@ create_comparison_plot(df_LS, "Lifespan Sensitivity: Senescence VS No-senescence
 # B. LRO Comparison
 df_LRO <- df_diff %>%
   filter(metric %in% c("mean_LRO", "var_LRO", "skew_LRO")) %>%
-  mutate(metric_label = factor(metric, 
+  mutate(metric = factor(metric, 
                                levels = c("mean_LRO", "var_LRO", "skew_LRO"),
                                labels = c("Mean", "Variance", "Skewness"))) %>%
   filter(!is.na(perc_diff))

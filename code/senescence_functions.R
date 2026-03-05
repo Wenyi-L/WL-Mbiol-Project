@@ -184,12 +184,12 @@ compute_summary_table <- function(U_sen, U_no, U_noA_yesR, U_yesA_noR, F_sen, F_
   if(!exists("mean_lifespan")) stop("Source LuckFunctions.R first!")
   
   .get_moments <- function(U, F) {
-    mL <- mean_lifespan(U, mixdist = NULL) 
-    vL <- var_lifespan(U, mixdist = NULL)
-    sL <- skew_lifespan(U, mixdist = NULL)
-    mR <- mean_LRO(U, F, mixdist = NULL)
-    vR <- var_LRO_mcr(U, F, repro_var, mixdist = NULL)
-    sR <- skew_LRO(U, F, repro_var, mixdist = NULL)
+    mL <- mean_lifespan(U, mixdist = NULL)[1]
+    vL <- var_lifespan(U, mixdist = NULL)[1]
+    sL <- skew_lifespan(U, mixdist = NULL)[1]
+    mR <- mean_LRO(U, F, mixdist = NULL)[1]
+    vR <- var_LRO_mcr(U, F, repro_var, mixdist = NULL)[1]
+    sR <- skew_LRO(U, F, repro_var, mixdist = NULL)[1]
     c(mL=as.numeric(mL), vL=as.numeric(vL), sL=as.numeric(sL), mR=as.numeric(mR), vR=as.numeric(vR), sR=as.numeric(sR))
   }
   
@@ -208,3 +208,5 @@ compute_summary_table <- function(U_sen, U_no, U_noA_yesR, U_yesA_noR, F_sen, F_
     skew_LRO = c(r1["sR"], r2["sR"], r3["sR"], r4["sR"])
   )
 }
+
+
