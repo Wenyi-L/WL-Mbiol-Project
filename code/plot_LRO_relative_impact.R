@@ -13,8 +13,8 @@ library(tidyr)
 library(ggplot2)
 library(scales) 
 
-summary_file <- "output_batch/all_species_summary_stats.csv"
-output_dir   <- "summary_figures_4models"
+summary_file <- "Results/senescence analysis/all_species_summary_stats.csv"
+output_dir   <- "Results/summary figures"
 
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 

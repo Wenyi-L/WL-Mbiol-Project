@@ -1,5 +1,5 @@
 ## =========================================================
-## run_peak_vs_maturity_comparison.R
+## run_peak_vs_maturity_comparison.Rb(To be DONE)
 ##
 ## Purpose: 
 ## Final refined visualization for methodology comparison.
@@ -20,53 +20,20 @@ library(scales)
 ## -------------------------------
 ## 1. Setup Environment
 ## -------------------------------
-excel_file <- "Jones2014.xls" 
-output_dir <- "output_peak_weighted" # Reverted to your preferred directory
-species_plots_dir <- file.path(output_dir, "species_diagnostic_plots")
+excel_file <- "data/Jones2014.xls" 
+output_dir <- "Results/summary figures"
+species_plots_dir <- file.path("Results/sensitivity analysis/species_diagnostic_plots")
 
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 if (!dir.exists(species_plots_dir)) dir.create(species_plots_dir, recursive = TRUE)
 
 # Ensure helper scripts are present
-source("LuckFunctions.R")
-source("senescence_functions.R") 
+source("code/LuckFunctions.R")
+source("code/senescence_functions.R") 
+
 
 ## -------------------------------
-## 2. Helper: No-Senescence Weighted Mean
-## -------------------------------
-create_nosen_vectors <- function(ages, sx, fx, maturity_age) {
-  k <- length(ages)
-  lx <- numeric(k)
-  lx[1] <- 1
-  if (k > 1) {
-    for (i in 1:(k-1)) lx[i+1] <- lx[i] * sx[i]
-  }
-  
-  idx_adult <- which(ages >= maturity_age)
-  if (length(idx_adult) == 0) idx_adult <- k
-  
-  w <- lx[idx_adult]
-  if (sum(w) == 0) w <- rep(1, length(w))
-  
-  sx_adult_vals <- sx[idx_adult]
-  fx_adult_vals <- fx[idx_adult]
-  
-  sx_mean <- weighted.mean(sx_adult_vals, w, na.rm = TRUE)
-  fx_mean <- weighted.mean(fx_adult_vals, w, na.rm = TRUE)
-  
-  sx_nosen <- sx
-  fx_nosen <- fx
-  sx_nosen[idx_adult] <- sx_mean
-  fx_nosen[idx_adult] <- fx_mean
-  
-  sx_nosen[!is.finite(sx_nosen)] <- 0
-  fx_nosen[!is.finite(fx_nosen)] <- 0
-  
-  return(list(sx = sx_nosen, fx = fx_nosen))
-}
-
-## -------------------------------
-## 3. Main Data Processing
+## 2. Main Data Processing
 ## -------------------------------
 sheets <- excel_sheets(excel_file)
 comparison_results <- list()
@@ -74,66 +41,127 @@ comparison_results <- list()
 message("Starting analysis loop...")
 
 for (sh in sheets) {
-  # Extract Taxon from D1
-  class_val <- as.character(read_excel(excel_file, sheet = sh, range = "D1:D1", col_names = FALSE)[1,1])
   
-  df_raw <- try(read_excel(excel_file, sheet = sh, skip = 1), silent = TRUE)
-  if (inherits(df_raw, "try-error") || !("x" %in% names(df_raw))) next
+  message("\n==============================")
+  message("Processing sheet: ", sh)
+  message("==============================")
+  
+  species_name <- sh
+  
+  meta_raw <- try(
+    read_excel(excel_file, sheet = sh, range = "E1", col_names = FALSE),
+    silent = TRUE
+  )
+  study_type <- if (!inherits(meta_raw, "try-error") && nrow(meta_raw) > 0) as.character(meta_raw[[1,1]]) else "Unknown"
+  message("  -> Data type detected: ", study_type)
+  
+  ## ---- Read data ----
+  df_raw <- try(
+    read_excel(excel_file, sheet = sh, skip = 1, col_names = TRUE),
+    silent = TRUE
+  )
+  
+  if (inherits(df_raw, "try-error")) {
+    message("  -> ERROR reading sheet: ", sh)
+    next
+  }
+  
   df <- as.data.frame(df_raw)
   
-  species_vectors <- list()
-  methods_list <- c("Logistic_50", "Peak_Fertility")
+  if (!("x" %in% names(df))) {
+    message("  -> SKIP: sheet ", sh, " has no 'x' column.")
+    next
+  }
   
-  for (method in methods_list) {
-    tryCatch({
-      if (method == "Logistic_50") {
-        demog <- prepare_demography_data_from_df(df, maturity_method = "logistic", maturity_prob = 0.50)
-      } else {
-        temp <- prepare_demography_data_from_df(df, maturity_age = 1)
-        peak_idx <- which.max(temp$fx)
-        demog <- temp
-        demog$maturity_age <- temp$ages[peak_idx]
-      }
-      
-      mpm_sen <- build_MPM_senescence(demog$ages, demog$sx, demog$fx)
-      nosen_vecs <- create_nosen_vectors(demog$ages, demog$sx, demog$fx, demog$maturity_age)
-      mpm_no <- build_MPM_senescence(demog$ages, nosen_vecs$sx, nosen_vecs$fx)
-      
-      species_vectors[[method]] <- list(sx = nosen_vecs$sx, fx = nosen_vecs$fx)
-      if(method == "Logistic_50") species_vectors[["Sen"]] <- list(ages = demog$ages, sx = demog$sx, fx = demog$fx)
-      
-      mix_sen <- mixing_distro(mpm_sen$A, mpm_sen$F)
-      mix_no  <- mixing_distro(mpm_no$A, mpm_no$F)
-      summ <- compute_summary_table(mpm_sen$U, mpm_no$U, mpm_sen$U, mpm_sen$U, 
-                                    mpm_sen$F, mpm_no$F, mpm_sen$F, mpm_sen$F,
-                                    mix_sen, mix_no, mix_sen, mix_sen, repro_var = "Poisson")
-      
-      summ$species <- sh
-      summ$Class   <- class_val
-      summ$Method  <- method
-      comparison_results[[length(comparison_results) + 1]] <- summ %>% filter(model %in% c("Senescence", "No-senescence"))
-    }, error = function(e) { })
+  ## -------------------------------
+  ## Attempt full demographic analysis
+  ## -------------------------------
+  res <- try({
+    ## 1. Prepare demographic inputs
+    demog <- prepare_demography_data_from_df(dat = df, input_type = "auto")
+    
+    # Cap the maximum survival rate to avoid exact 1.0
+    demog$sx[demog$sx >= 1] <- 0.9999 
+    
+    ## Basic validity checks
+    if (!any(is.finite(demog$sx))) stop("All sx values are non-finite")
+    if (!any(is.finite(demog$fx))) stop("All fx values are non-finite")
+    
+    ## 2. Build MPMs for four senescence scenarios
+    mpm_sen <- build_MPM_senescence(ages = demog$ages, sx = demog$sx, fx = demog$fx)
+    mpm_no_peak <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    mpm_no_early <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$early_onset)
+    mpm_no_late <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$late_onset)
+    
+    ## 3. Create species vector for plotting
+    species_vectors <- list(
+      sen      = list(ages = demog$ages, sx = mpm_sen$sx,      fx = mpm_sen$fx),
+      no_peak  = list(ages = demog$ages, sx = mpm_no_peak$sx,  fx = mpm_no_peak$fx),
+      no_early = list(ages = demog$ages, sx = mpm_no_early$sx, fx = mpm_no_early$fx),
+      no_late  = list(ages = demog$ages, sx = mpm_no_late$sx,  fx = mpm_no_late$fx)
+    )
+    
+    ## 4. Summary statistics
+    summary_df <- compute_sensitivity_table(
+      U_sen        = mpm_sen$U,
+      U_no_peak    = mpm_no_peak$U,
+      U_no_early   = mpm_no_early$U,
+      U_no_late    = mpm_no_late$U,
+      F_sen        = mpm_sen$F,
+      F_no_peak    = mpm_no_peak$F,
+      F_no_early   = mpm_no_early$F,
+      F_no_late    = mpm_no_late$F,
+      repro_var    = "Poisson"  
+    )
+    
+    summary_df$species <- species_name
+    summary_df$sheet   <- sh
+    
+    summary_df 
+  }) #<- end of try()
+  
+  
+  ## 4. Save section (outside try() but inside for() )
+  
+  if (!inherits(res, "try-error")) {
+    message("  -> OK: added species ", species_name)
+    
+    # 1. Save 'res' into the global list using species_name as the key
+    comparison_results[[species_name]] <- res
+    
+    # 2. Save individual CSV for this species
+    write.csv(
+      res,
+      file = file.path(output_dir, paste0(species_name, "_summary_stats.csv")),
+      row.names = FALSE
+    )
+  } else {
+    message("  -> ERROR on species ", species_name)
   }
   
   # Diagnostic plots for each species
   if (!is.null(species_vectors$Sen) && length(species_vectors) >= 3) {
     spec_dir <- file.path(species_plots_dir, gsub(" ", "_", sh))
     if (!dir.exists(spec_dir)) dir.create(spec_dir)
-    diag_df <- data.frame(Age = species_vectors$Sen$ages, sx_Raw = species_vectors$Sen$sx, fx_Raw = species_vectors$Sen$fx,
-                          sx_Logi = species_vectors$Logistic_50$sx, fx_Logi = species_vectors$Logistic_50$fx,
-                          sx_Peak = species_vectors$Peak_Fertility$sx, fx_Peak = species_vectors$Peak_Fertility$fx)
+    
+    plot_colors <- c("Senescence" = "#BEBEBE", "No Peak" = "#56B4E9", "No Early" = "#E69F00", "No Late" = "#009E73")
+    
+    diag_df <- data.frame(Age = species_vectors$sen$ages, sx_sen = species_vectors$sen$sx, fx_sen = species_vectors$sen$fx,
+                          sx_no_peak = species_vectors$no_peak$sx, fx_no_peak = species_vectors$no_peak$fx,
+                          sx_early = species_vectors$no_early$sx, fx_early = species_vectors$no_early$fx,
+                          sx_late = species_vectors$no_late$sx, fx_no_peak = species_vectors$no_late$fx,)
     
     p_sx <- ggplot(diag_df, aes(x = Age)) +
-      geom_line(aes(y = sx_Raw, color = "Raw"), size = 1.2) +
-      geom_line(aes(y = sx_Logi, color = "Logi_50"), linetype = "dashed") +
-      geom_line(aes(y = sx_Peak, color = "Peak_Fert"), linetype = "dotted", size = 1.1) +
-      scale_color_manual(values = c("black", "#56B4E9", "#E69F00")) + theme_bw() + labs(title = paste(sh, "sx"))
+      geom_line(aes(y = sx_sen, color = "Senescence"), size = 1.2) +
+      geom_line(aes(y = sx_no_peak, color = "No Peak"),size=1.2) +
+      geom_line(aes(y = sx_no_early, color = "No Early"), size = 1.2) +
+      geom_line(aes(y = sx_no_late, color = "No Late"), size = 1.2) + theme_bw() + labs(title = paste(sh, "sx"))
     
     p_fx <- ggplot(diag_df, aes(x = Age)) +
-      geom_line(aes(y = fx_Raw, color = "Raw"), size = 1.2) +
-      geom_line(aes(y = fx_Logi, color = "Logi_50"), linetype = "dashed") +
-      geom_line(aes(y = fx_Peak, color = "Peak_Fert"), linetype = "dotted", size = 1.1) +
-      scale_color_manual(values = c("black", "#56B4E9", "#E69F00")) + theme_bw() + labs(title = paste(sh, "fx"))
+      geom_line(aes(y = fx_sen, color = "Senescence"), size = 1.2) +
+      geom_line(aes(y = fx_no_peak, color = "No Peak"),size=1.2) +
+      geom_line(aes(y = fx_no_early, color = "No Early"), size = 1.2) +
+      geom_line(aes(y = fx_no_late, color = "No Late"), size = 1.2) +  theme_bw() + labs(title = paste(sh, "fx"))
     
     ggsave(file.path(spec_dir, "sx_compare.png"), p_sx, width = 6, height = 4)
     ggsave(file.path(spec_dir, "fx_compare.png"), p_fx, width = 6, height = 4)
@@ -144,15 +172,50 @@ for (sh in sheets) {
 ## 4. Compile Results & Export
 ## -------------------------------
 all_res <- do.call(rbind, comparison_results)
-df_diff <- all_res %>%
-  select(species, Class, Method, model, mean_lifespan, var_lifespan, skew_lifespan, mean_LRO, var_LRO, skew_LRO) %>%
-  pivot_wider(names_from = model, values_from = c(mean_lifespan, var_lifespan, skew_lifespan, mean_LRO, var_LRO, skew_LRO)) %>%
-  mutate(Diff_Mean_Lifespan = (mean_lifespan_Senescence - `mean_lifespan_No-senescence`) / mean_lifespan_Senescence,
-         Diff_Var_Lifespan  = (var_lifespan_Senescence  - `var_lifespan_No-senescence`)  / var_lifespan_Senescence,
-         Diff_Skew_Lifespan = (skew_lifespan_Senescence - `skew_lifespan_No-senescence`) / skew_lifespan_Senescence,
-         Diff_Mean_LRO      = (mean_LRO_Senescence      - `mean_LRO_No-senescence`)      / mean_LRO_Senescence,
-         Diff_Var_LRO       = (var_LRO_Senescence       - `var_LRO_No-senescence`)       / var_LRO_Senescence,
-         Diff_Skew_LRO      = (skew_LRO_Senescence      - `skew_LRO_No-senescence`)      / skew_LRO_Senescence)
+# Calculate percentage change relative to Senescence
+df_relative <- all_res %>%
+  select(species, model, mean_lifespan, var_lifespan,skew_lifespan,mean_LRO, var_LRO, skew_LRO) %>%
+  pivot_wider(names_from = model, values_from = c(mean_lifespan, var_lifespan,skew_lifespan,mean_LRO, var_LRO, skew_LRO)) %>%
+  mutate(
+    # NOTE: Using backticks (`) to handle hyphens and slashes in column names
+    
+    # 1. No-senescence vs Senescence
+    pct_diff_NoSen_Mean = (`mean_LRO_No-senescence` - mean_LRO_Senescence) / mean_LRO_Senescence,
+    pct_diff_NoSen_Var  = (`var_LRO_No-senescence` - var_LRO_Senescence)  / var_LRO_Senescence,
+    pct_diff_NoSen_Skew = (`skew_LRO_No-senescence` - skew_LRO_Senescence) / skew_LRO_Senescence,
+    
+    # 2. No-Actuarial vs Senescence
+    pct_diff_NoAct_Mean = (`mean_LRO_No-actuarial/Yes-reproductive` - mean_LRO_Senescence) / mean_LRO_Senescence,
+    pct_diff_NoAct_Var  = (`var_LRO_No-actuarial/Yes-reproductive`  - var_LRO_Senescence)  / var_LRO_Senescence,
+    pct_diff_NoAct_Skew = (`skew_LRO_No-actuarial/Yes-reproductive` - skew_LRO_Senescence) / skew_LRO_Senescence,
+    
+    # 3. Yes-Actuarial (No-Repro) vs Senescence
+    pct_diff_NoRep_Mean = (`mean_LRO_Yes-actuarial/No-reproductive` - mean_LRO_Senescence) / mean_LRO_Senescence,
+    pct_diff_NoRep_Var  = (`var_LRO_Yes-actuarial/No-reproductive`  - var_LRO_Senescence)  / var_LRO_Senescence,
+    pct_diff_NoRep_Skew = (`skew_LRO_Yes-actuarial/No-reproductive` - skew_LRO_Senescence) / skew_LRO_Senescence
+  ) %>%
+  select(species, starts_with("pct_diff")) %>%
+  pivot_longer(cols = -species, names_to = "comparison", values_to = "pct_change") %>%
+  separate(comparison, into = c("dummy", "dummy2", "Model_Code", "Metric_Code"), sep = "_") %>%
+  select(-dummy, -dummy2) %>%
+  mutate(
+    # Convert to percentage values
+    pct_change = pct_change * 100,
+    # Map back to full model names
+    Model = case_when(
+      Model_Code == "NoSen" ~ "No-senescence",
+      Model_Code == "NoAct" ~ "No-actuarial/Yes-reproductive",
+      Model_Code == "NoRep" ~ "Yes-actuarial/No-reproductive"
+    ),
+    Metric = case_when(
+      Metric_Code == "Mean" ~ "Mean LRO",
+      Metric_Code == "Var"  ~ "Variance LRO",
+      Metric_Code == "Skew" ~ "Skewness LRO"
+    ),
+    # Set factor levels for plotting order
+    Model = factor(Model, levels = c("No-senescence", "No-actuarial/Yes-reproductive", "Yes-actuarial/No-reproductive")),
+    Metric = factor(Metric, levels = c("Mean LRO", "Variance LRO", "Skewness LRO"))
+  )
 
 write.csv(df_diff, file.path(output_dir, "methodology_full_results.csv"), row.names = FALSE)
 

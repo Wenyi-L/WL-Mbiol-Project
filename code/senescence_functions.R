@@ -209,4 +209,32 @@ compute_summary_table <- function(U_sen, U_no, U_noA_yesR, U_yesA_noR, F_sen, F_
   )
 }
 
+compute_sensitivity_table <- function(U_sen, U_no_peak, U_no_early, U_no_late, F_sen, F_no_peak, F_no_early, F_no_late, repro_var="Poisson") {
+  if(!exists("mean_lifespan")) stop("Source LuckFunctions.R first!")
+  
+  .get_moments <- function(U, F) {
+    mL <- mean_lifespan(U, mixdist = NULL)[1]
+    vL <- var_lifespan(U, mixdist = NULL)[1]
+    sL <- skew_lifespan(U, mixdist = NULL)[1]
+    mR <- mean_LRO(U, F, mixdist = NULL)[1]
+    vR <- var_LRO_mcr(U, F, repro_var, mixdist = NULL)[1]
+    sR <- skew_LRO(U, F, repro_var, mixdist = NULL)[1]
+    c(mL=as.numeric(mL), vL=as.numeric(vL), sL=as.numeric(sL), mR=as.numeric(mR), vR=as.numeric(vR), sR=as.numeric(sR))
+  }
+  
+  r1 <- .get_moments(U_sen, F_sen)
+  r2 <- .get_moments(U_no_peak, F_no_peak)
+  r3 <- .get_moments(U_no_early, F_no_early)
+  r4 <- .get_moments(U_no_late, F_no_late)
+  
+  data.frame(
+    model = c("Senescence", "No-senescence-peak", "No-senescence-early", "No-senescence-late"),
+    mean_lifespan = c(r1["mL"], r2["mL"], r3["mL"], r4["mL"]),
+    var_lifespan = c(r1["vL"], r2["vL"], r3["vL"], r4["vL"]),
+    skew_lifespan = c(r1["sL"], r2["sL"], r3["sL"], r4["sL"]),
+    mean_LRO = c(r1["mR"], r2["mR"], r3["mR"], r4["mR"]),
+    var_LRO = c(r1["vR"], r2["vR"], r3["vR"], r4["vR"]),
+    skew_LRO = c(r1["sR"], r2["sR"], r3["sR"], r4["sR"])
+  )
+}
 

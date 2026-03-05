@@ -100,7 +100,7 @@ for (sh in sheets) {
     ## 1. Prepare demographic inputs
     demog <- prepare_demography_data_from_df(dat = df, input_type = "auto")
     
-    # Source shield: Cap the maximum survival rate to avoid exact 1.0
+    # Cap the maximum survival rate to avoid exact 1.0
     demog$sx[demog$sx >= 1] <- 0.9999 
     
     ## Basic validity checks
@@ -130,7 +130,7 @@ for (sh in sheets) {
     summary_df$sheet   <- sh
     
     summary_df 
-  }, silent = TRUE) #<- end of try()
+  }) #<- end of try()
   
   
     ## 4. Save section (outside try() but inside for() )
