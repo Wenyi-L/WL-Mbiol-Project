@@ -1,7 +1,7 @@
 ## =========================================================
 ## senescence_functions.R (Updated 03/03/2026)
 ##
-## FIXES:
+## FIXES: ###CH: These three items look like LLM output - check if these comments still belong here based on your recent updates
 ## 1. Reverted argument names to 'sx_senescence'/'fx_senescence'
 ##    to match your existing run scripts.
 ## 2. Logic remains WEIGHTED MEAN (Scientific Correctness).
@@ -22,7 +22,8 @@ calculate_weighted_adult_means <- function(ages, sx, fx, senescence_onset_age) {
   w <- lx[idx_adult]
   if (sum(w) == 0) w <- rep(1, length(w))
   
-  sx_mean <- weighted.mean(sx[idx_adult], w, na.rm = TRUE)
+  ###CH: if supplied weights do not sum to 1, the weighted.mean function will normalize them.
+  sx_mean <- weighted.mean(sx[idx_adult], w, na.rm = TRUE) 
   fx_mean <- weighted.mean(fx[idx_adult], w, na.rm = TRUE)
   
   return(list(sx_mean = sx_mean, fx_mean = fx_mean))
@@ -85,7 +86,7 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", study_type =
   } else if(has_col("Nx") && k>=2) {
     sx <- rep(NA, k); idx <- which(!is.na(Nx[-k]) & Nx[-k]>0)
     sx[idx] <- Nx[idx+1]/Nx[idx]
-  } else stop("No survival info") #This step is different methods to calculate sx from different variable stypes in the original dataset
+  } else stop("No survival info") #This step is different methods to calculate sx from different variable types in the original dataset
   
   if (is.na(tail(sx, 1))) {
     if (grepl("IBCohort", study_type, ignore.case = TRUE)) {
@@ -180,6 +181,11 @@ build_MPM_yes_actuarial_no_reproductive <- function(ages, sx_senescence, fx_sene
   build_MPM_senescence(ages, sx_senescence, fx_no)
 }
 
+###CH: I expect that this works fine, but could be simplified - removing
+###actuarial senescence should affect only the U matrix, while removing
+###reproductive senescence should affect only the F matrix. So really you should
+###have 2 U matrices and 2 F matrices, and you can combine them to make the four
+###A matrices and calculate the other metrics.
 compute_summary_table <- function(U_sen, U_no, U_noA_yesR, U_yesA_noR, F_sen, F_no, F_noA_yesR, F_yesA_noR, repro_var="Poisson") {
   if(!exists("mean_lifespan")) stop("Source LuckFunctions.R first!")
   

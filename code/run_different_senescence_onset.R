@@ -31,9 +31,12 @@ if (!dir.exists(species_plots_dir)) dir.create(species_plots_dir, recursive = TR
 source("code/LuckFunctions.R")
 source("code/senescence_functions.R") 
 
-
+###CH: Why does it need to process again before plotting? Why not load the
+###saved/processed data and continue the analyses from there? Processing twice
+##means that any changes #to processing have to be implemented in both places,
+##increasing the risk of mistakes. But if there's a good reason, let's discuss.
 ## -------------------------------
-## 2. Main Data Processing
+##2. Main Data Processing
 ## -------------------------------
 sheets <- excel_sheets(excel_file)
 comparison_results <- list()
