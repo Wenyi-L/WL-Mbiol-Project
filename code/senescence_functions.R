@@ -131,9 +131,6 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", study_type =
        late_onset = late_onset)
 }
 
-
-
-
 ## ---------------------------------------------------------
 ## Model Builders (Removed MIXDIST) 
 ## ---------------------------------------------------------
