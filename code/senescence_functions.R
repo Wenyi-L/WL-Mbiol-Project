@@ -79,6 +79,12 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", study_type =
   noff <- if(has_col("noffspring")) as.numeric(dat$noffspring) else rep(NA, k)
   fert_mx <- if(has_col("fert.mx")) as.numeric(dat$fert.mx) else rep(NA, k)
   
+  ###CH: This is one spot that we should discuss again - based on the figures,
+  ###some of the models seem to start at age 0 and some start at age 1. We need
+  ###to use the information in these spreadsheets to make them all into
+  ###pre-breeding models, where individuals are first observed at age 1. So this
+  ###part probably needs to adjust the survival values based on whether the
+  ###fertility data is fx or mx.
   if(has_col("qx")) sx <- 1 - qx
   else if(has_col("lx") && k>=2) {
     sx <- rep(NA, k); idx <- which(!is.na(lx_raw[-k]) & lx_raw[-k]>0)
