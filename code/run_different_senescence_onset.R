@@ -31,8 +31,8 @@ if (!dir.exists(species_plots_dir)) dir.create(species_plots_dir, recursive = TR
 source("code/LuckFunctions.R")
 source("code/senescence_functions.R") 
 
-# CH addressed: We now process data ONCE in Loop 1, save the objects, 
-# and use the pre-calculated data for plotting in Loop 2!
+# Addressed: We now process data ONCE in Loop 1, save the objects, 
+# and use the pre-calculated data for plotting in Loop 2.
 
 ## -------------------------------
 ## 2. Main Data Processing (Loop 1)
