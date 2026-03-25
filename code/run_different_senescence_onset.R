@@ -1,5 +1,5 @@
 ## =========================================================
-## run_peak_vs_maturity_comparison.R
+## run_different_senescence_onset.R
 ##
 ## Purpose: 
 ## Final refined visualization for methodology comparison.
@@ -31,17 +31,19 @@ if (!dir.exists(species_plots_dir)) dir.create(species_plots_dir, recursive = TR
 source("code/LuckFunctions.R")
 source("code/senescence_functions.R") 
 
-###CH: Why does it need to process again before plotting? Why not load the
-###saved/processed data and continue the analyses from there? Processing twice
-##means that any changes #to processing have to be implemented in both places,
-##increasing the risk of mistakes. But if there's a good reason, let's discuss.
+# CH addressed: We now process data ONCE in Loop 1, save the objects, 
+# and use the pre-calculated data for plotting in Loop 2!
+
 ## -------------------------------
-##2. Main Data Processing
+## 2. Main Data Processing (Loop 1)
 ## -------------------------------
 sheets <- excel_sheets(excel_file)
-comparison_results <- list()
 
-message("Starting analysis loop...")
+# Lists to store pre-calculated data
+all_onset_results <- list()
+all_demog_tables <- list()
+
+message("Starting analysis loop (Calculation only)...")
 
 for (sh in sheets) {
   
@@ -80,7 +82,7 @@ for (sh in sheets) {
   ## Attempt full demographic analysis
   ## -------------------------------
   res <- try({
-    ## 1. Prepare demographic inputs
+    ## 1. Prepare demographic inputs (Includes s0 adjustment & Age 0 removal)
     demog <- prepare_demography_data_from_df(dat = df, input_type = "auto")
     
     # Cap the maximum survival rate to avoid exact 1.0
@@ -96,15 +98,7 @@ for (sh in sheets) {
     mpm_no_early <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$early_onset)
     mpm_no_late <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$late_onset)
     
-    ## 3. Create species vector for plotting
-    species_vectors <- list(
-      sen      = list(ages = demog$ages, sx = mpm_sen$sx,      fx = mpm_sen$fx),
-      no_peak  = list(ages = demog$ages, sx = mpm_no_peak$sx,  fx = mpm_no_peak$fx),
-      no_early = list(ages = demog$ages, sx = mpm_no_early$sx, fx = mpm_no_early$fx),
-      no_late  = list(ages = demog$ages, sx = mpm_no_late$sx,  fx = mpm_no_late$fx)
-    )
-    
-    ## 4. Summary statistics
+    ## 3. Summary statistics
     summary_df <- compute_sensitivity_table(
       U_sen        = mpm_sen$U,
       U_no_peak    = mpm_no_peak$U,
@@ -120,61 +114,103 @@ for (sh in sheets) {
     summary_df$species <- species_name
     summary_df$sheet   <- sh
     
-    summary_df 
+    # Bundle everything to save for plotting later
+    list(
+      summary = summary_df,
+      demog = demog,
+      mpm_sen = mpm_sen,
+      mpm_no_peak = mpm_no_peak,
+      mpm_no_early = mpm_no_early,
+      mpm_no_late = mpm_no_late
+    )
   }) #<- end of try()
   
-  
-  ## 4. Save section (outside try() but inside for() )
-  
+  ## 4. Save section
   if (!inherits(res, "try-error")) {
     message("  -> OK: added species ", species_name)
     
-    # 1. Save 'res' into the global list using species_name as the key
-    comparison_results[[species_name]] <- res
+    # Save into the global list
+    all_onset_results[[species_name]] <- res
     
-    # 2. Save individual CSV for this species
+    # Save sx/fx to master table
+    sp_demog <- data.frame(
+      Species = species_name,
+      Age = res$demog$ages,
+      sx = res$demog$sx,
+      fx = res$demog$fx
+    )
+    all_demog_tables[[species_name]] <- sp_demog
+    
+    # Save individual CSV for this species
     write.csv(
-      res,
+      res$summary,
       file = file.path(output_dir, paste0(species_name, "_summary_stats.csv")),
       row.names = FALSE
     )
   } else {
     message("  -> ERROR on species ", species_name)
   }
-  
-  # Diagnostic plots for each species
-  if (!is.null(species_vectors$sen) && length(species_vectors) >= 3) {
-    spec_dir <- file.path(species_plots_dir, gsub(" ", "_", sh))
-    if (!dir.exists(spec_dir)) dir.create(spec_dir)
-    
-    plot_colors <- c("Senescence" = "#BEBEBE", "No Peak" = "#56B4E9", "No Early" = "#E69F00", "No Late" = "#009E73")
-    
-    diag_df <- data.frame(Age = species_vectors$sen$ages, sx_sen = species_vectors$sen$sx, fx_sen = species_vectors$sen$fx,
-                          sx_no_peak = species_vectors$no_peak$sx, fx_no_peak = species_vectors$no_peak$fx,
-                          sx_early = species_vectors$no_early$sx, fx_early = species_vectors$no_early$fx,
-                          sx_late = species_vectors$no_late$sx, fx_late = species_vectors$no_late$fx)
-    
-    p_sx <- ggplot(diag_df, aes(x = Age)) +
-      geom_line(aes(y = sx_sen, color = "Senescence"), size = 1.2) +
-      geom_line(aes(y = sx_no_peak, color = "No Peak"),size=1.2) +
-      geom_line(aes(y = sx_early, color = "No Early"), size = 1.2) +
-      geom_line(aes(y = sx_late, color = "No Late"), size = 1.2) + theme_bw() + labs(title = paste(sh, "sx"))
-    
-    p_fx <- ggplot(diag_df, aes(x = Age)) +
-      geom_line(aes(y = fx_sen, color = "Senescence"), size = 1.2) +
-      geom_line(aes(y = fx_no_peak, color = "No Peak"),size=1.2) +
-      geom_line(aes(y = fx_early, color = "No Early"), size = 1.2) +
-      geom_line(aes(y = fx_late, color = "No Late"), size = 1.2) +  theme_bw() + labs(title = paste(sh, "fx"))
-    
-    ggsave(file.path(spec_dir, "sx_compare.png"), p_sx, width = 6, height = 4)
-    ggsave(file.path(spec_dir, "fx_compare.png"), p_fx, width = 6, height = 4)
-  }
-} ##<--- end of the FOR loop
+} ##<--- end of LOOP 1
 
 ## -------------------------------
-## 4. Compile Results & Export
+## 3. Export Master Demography CSV
 ## -------------------------------
-all_res <- do.call(rbind, comparison_results)
+if(length(all_demog_tables) > 0) {
+  master_demog <- do.call(rbind, all_demog_tables)
+  write.csv(master_demog, file.path(output_dir, "All_Species_Onset_Demography.csv"), row.names = FALSE)
+  message("\nMaster Demography CSV exported successfully!")
+}
+
+## -------------------------------
+## 4. Plotting Diagnostic Plots (Loop 2)
+## -------------------------------
+message("\nStarting diagnostic plotting loop...")
+
+for (sh in names(all_onset_results)) {
+  
+  res <- all_onset_results[[sh]]
+  demog <- res$demog
+  mpm_sen <- res$mpm_sen
+  mpm_no_peak <- res$mpm_no_peak
+  mpm_no_early <- res$mpm_no_early
+  mpm_no_late <- res$mpm_no_late
+  
+  spec_dir <- file.path(species_plots_dir, gsub(" ", "_", sh))
+  if (!dir.exists(spec_dir)) dir.create(spec_dir)
+  
+  plot_colors <- c("Senescence" = "#BEBEBE", "No Peak" = "#56B4E9", "No Early" = "#E69F00", "No Late" = "#009E73")
+  
+  diag_df <- data.frame(
+    Age = demog$ages, 
+    sx_sen = mpm_sen$sx, fx_sen = mpm_sen$fx,
+    sx_no_peak = mpm_no_peak$sx, fx_no_peak = mpm_no_peak$fx,
+    sx_early = mpm_no_early$sx, fx_early = mpm_no_early$fx,
+    sx_late = mpm_no_late$sx, fx_late = mpm_no_late$fx
+  )
+  
+  p_sx <- ggplot(diag_df, aes(x = Age)) +
+    geom_line(aes(y = sx_sen, color = "Senescence"), size = 1.2) +
+    geom_line(aes(y = sx_no_peak, color = "No Peak"),size=1.2) +
+    geom_line(aes(y = sx_early, color = "No Early"), size = 1.2) +
+    geom_line(aes(y = sx_late, color = "No Late"), size = 1.2) + theme_bw() + labs(title = paste(sh, "sx"))
+  
+  p_fx <- ggplot(diag_df, aes(x = Age)) +
+    geom_line(aes(y = fx_sen, color = "Senescence"), size = 1.2) +
+    geom_line(aes(y = fx_no_peak, color = "No Peak"),size=1.2) +
+    geom_line(aes(y = fx_early, color = "No Early"), size = 1.2) +
+    geom_line(aes(y = fx_late, color = "No Late"), size = 1.2) +  theme_bw() + labs(title = paste(sh, "fx"))
+  
+  ggsave(file.path(spec_dir, "sx_compare.png"), p_sx, width = 6, height = 4)
+  ggsave(file.path(spec_dir, "fx_compare.png"), p_fx, width = 6, height = 4)
+} ##<--- end of LOOP 2
+
+## -------------------------------
+## 5. Compile Results & Export
+## -------------------------------
+# Extract just the summary_df from our pre-calculated list
+summary_list <- lapply(all_onset_results, function(x) x$summary)
+all_res <- do.call(rbind, summary_list)
+
 # Calculate percentage change relative to Senescence
 df_relative <- all_res %>%
   select(species, model, mean_lifespan, var_lifespan, skew_lifespan, mean_LRO, var_LRO, skew_LRO) %>%
@@ -251,14 +287,13 @@ df_relative <- all_res %>%
 write.csv(df_relative, file.path(output_dir, "methodology_full_results.csv"), row.names = FALSE)
 
 ## -------------------------------
-## 5. Summary Plots with Improved Visuals
+## 6. Summary Plots with Improved Visuals
 ## -------------------------------
 df_plot <- df_relative %>%
   select(species, Model, Metric, Trait_Code, pct_change)
 
 create_comparison_plot <- function(data_subset, title_suffix) {
   
-  # x-axis is now mapped to 'Model' and y-axis to 'pct_change'
   ggplot(data_subset, aes(x = Model, y = pct_change)) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
     
@@ -269,9 +304,6 @@ create_comparison_plot <- function(data_subset, title_suffix) {
     # Facet by specific metrics (Mean, Variance, Skewness)
     facet_wrap(~Metric, scales = "free_y", ncol = 3) +
     
-    # The data is already in percentage format (multiplied by 100), 
-    # so no need to multiply by 100 here. Just round it and add '%'. 
-    # Sigma is set to 10 for better visualization on the percentage scale.
     scale_y_continuous(trans = scales::pseudo_log_trans(base = 10, sigma = 10),
                        labels = function(x) paste0(round(x), "%")) +
     
@@ -291,9 +323,7 @@ create_comparison_plot <- function(data_subset, title_suffix) {
     
     theme(legend.position = "bottom", 
           plot.title = element_text(face="bold"),
-          # Left margin reduced to 10 since there are no left-aligned labels anymore
           plot.margin = margin(10, 10, 10, 10), 
-          # Slightly tilt x-axis text to prevent overlapping
           axis.text.x = element_text(angle = 15, hjust = 1)) 
 }
 
@@ -301,7 +331,9 @@ create_comparison_plot <- function(data_subset, title_suffix) {
 p_life <- create_comparison_plot(df_plot %>% filter(Trait_Code == "Lifespan"), "Lifespan")
 p_lro  <- create_comparison_plot(df_plot %>% filter(Trait_Code == "LRO"), "LRO")
 
+if(!dir.exists("Results/summary figures")) dir.create("Results/summary figures", recursive = TRUE)
+
 ggsave(file.path("Results/summary figures", "Summary_Lifespan_onset_of_senescence.png"), p_life, width = 14, height = 7)
 ggsave(file.path("Results/summary figures","Summary_LRO_Final_onset_of_senescence.png"), p_lro, width = 14, height = 7)
 
-message("Done! Files saved to: ", "Results/summary figures")
+message("Done! Files saved to: Results/summary figures")
