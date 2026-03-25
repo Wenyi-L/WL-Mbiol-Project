@@ -1,5 +1,5 @@
 ## =========================================================
-## run_peak_vs_maturity_comparison.Rb(To be DONE)
+## run_peak_vs_maturity_comparison.R
 ##
 ## Purpose: 
 ## Final refined visualization for methodology comparison.
