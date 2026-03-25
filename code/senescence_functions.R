@@ -1,7 +1,7 @@
 ## =========================================================
 ## senescence_functions.R (Updated 03/03/2026)
 ##
-## FIXES:
+## FIXES: ###CH: These three items look like LLM output - check if these comments still belong here based on your recent updates
 ## 1. Reverted argument names to 'sx_senescence'/'fx_senescence'
 ##    to match your existing run scripts.
 ## 2. Logic remains WEIGHTED MEAN (Scientific Correctness).
@@ -22,7 +22,8 @@ calculate_weighted_adult_means <- function(ages, sx, fx, senescence_onset_age) {
   w <- lx[idx_adult]
   if (sum(w) == 0) w <- rep(1, length(w))
   
-  sx_mean <- weighted.mean(sx[idx_adult], w, na.rm = TRUE)
+  ###CH: if supplied weights do not sum to 1, the weighted.mean function will normalize them.
+  sx_mean <- weighted.mean(sx[idx_adult], w, na.rm = TRUE) 
   fx_mean <- weighted.mean(fx[idx_adult], w, na.rm = TRUE)
   
   return(list(sx_mean = sx_mean, fx_mean = fx_mean))
@@ -78,6 +79,12 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", study_type =
   noff <- if(has_col("noffspring")) as.numeric(dat$noffspring) else rep(NA, k)
   fert_mx <- if(has_col("fert.mx")) as.numeric(dat$fert.mx) else rep(NA, k)
   
+  ###CH: This is one spot that we should discuss again - based on the figures,
+  ###some of the models seem to start at age 0 and some start at age 1. We need
+  ###to use the information in these spreadsheets to make them all into
+  ###pre-breeding models, where individuals are first observed at age 1. So this
+  ###part probably needs to adjust the survival values based on whether the
+  ###fertility data is fx or mx.
   if(has_col("qx")) sx <- 1 - qx
   else if(has_col("lx") && k>=2) {
     sx <- rep(NA, k); idx <- which(!is.na(lx_raw[-k]) & lx_raw[-k]>0)
@@ -85,7 +92,7 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", study_type =
   } else if(has_col("Nx") && k>=2) {
     sx <- rep(NA, k); idx <- which(!is.na(Nx[-k]) & Nx[-k]>0)
     sx[idx] <- Nx[idx+1]/Nx[idx]
-  } else stop("No survival info") #This step is different methods to calculate sx from different variable stypes in the original dataset
+  } else stop("No survival info") #This step is different methods to calculate sx from different variable types in the original dataset
   
   if (is.na(tail(sx, 1))) {
     if (grepl("IBCohort", study_type, ignore.case = TRUE)) {
@@ -129,9 +136,6 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", study_type =
        early_onset = early_onset,
        late_onset = late_onset)
 }
-
-
-
 
 ## ---------------------------------------------------------
 ## Model Builders (Removed MIXDIST) 
@@ -180,6 +184,11 @@ build_MPM_yes_actuarial_no_reproductive <- function(ages, sx_senescence, fx_sene
   build_MPM_senescence(ages, sx_senescence, fx_no)
 }
 
+###CH: I expect that this works fine, but could be simplified - removing
+###actuarial senescence should affect only the U matrix, while removing
+###reproductive senescence should affect only the F matrix. So really you should
+###have 2 U matrices and 2 F matrices, and you can combine them to make the four
+###A matrices and calculate the other metrics.
 compute_summary_table <- function(U_sen, U_no, U_noA_yesR, U_yesA_noR, F_sen, F_no, F_noA_yesR, F_yesA_noR, repro_var="Poisson") {
   if(!exists("mean_lifespan")) stop("Source LuckFunctions.R first!")
   

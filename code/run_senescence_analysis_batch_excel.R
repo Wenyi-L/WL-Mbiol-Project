@@ -4,11 +4,15 @@
 ## sheets of a single Excel file.
 ##
 ## Updated to use:
-## 1. senescence_compute.R (Data prep, MPM build, lifespandist)
-## 2. senescence_plots.R   (ggplot2 visualization)
+## 1. senescence_compute.R (Data prep, MPM build, lifespandist) ###CH: There is currently no file called senescence_compute.R
+## 2. senescence_plot.R   (ggplot2 visualization)
 ## 3. LuckFunctions.R      (Moments calculation)
 ## 4. distTraitCondR.R
 ## =========================================================
+
+###CH Comments from Chrissy will be tagged with a triple comment symbol and "CH"
+###so that you can ctrl+F to find them (or use Edit->Find in Files to search all
+###files in this directory)
 
 rm(list = ls())
 
@@ -175,7 +179,10 @@ if (length(all_results) == 0) {
     ## ---- Plotting ----
     ## -------------------------------
   
-
+###CH: Why does it need to process again before plotting? Why not load the
+###saved/processed data and plot that? Processing twice means that any changes
+###to processing have to be implemented in both places, and it's potentially a
+###waste of time/computing power. But if there's a good reason, let's discuss.
 for (sh in sheets) {
   
   message("\n==============================")
@@ -256,7 +263,7 @@ for (sh in sheets) {
     )
     
     ## 4b. Lifespan distributions (two-model)
-    # Using exact matrix method (from senescence_compute)
+    # Using exact matrix method (from senescence_compute) ###CH: senescence_compute doesn't exist??
     p_LS <- plot_lifespan_distributions(
       U_sen   = mpm_sen$U,
       U_no    = mpm_no$U
