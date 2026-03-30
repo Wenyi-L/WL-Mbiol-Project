@@ -1,5 +1,5 @@
 ## =========================================================
-## run_peak_vs_maturity_comparison.Rb(To be DONE)
+## run_peak_vs_maturity_comparison.R (Updated with split loops)
 ##
 ## Purpose: 
 ## Final refined visualization for methodology comparison.
@@ -31,23 +31,19 @@ if (!dir.exists(species_plots_dir)) dir.create(species_plots_dir, recursive = TR
 source("code/LuckFunctions.R")
 source("code/senescence_functions.R") 
 
-###CH: Why does it need to process again before plotting? Why not load the
-###saved/processed data and continue the analyses from there? Processing twice
-##means that any changes #to processing have to be implemented in both places,
-##increasing the risk of mistakes. But if there's a good reason, let's discuss.
 ## -------------------------------
-##2. Main Data Processing
+## 2. Pre-Processing Data
+## Read all sheet names and process once (Keeping age=0)
 ## -------------------------------
 sheets <- excel_sheets(excel_file)
 comparison_results <- list()
+processed_data <- list() 
 
-message("Starting analysis loop...")
+message("==============================")
+message("Starting Pre-processing Loop...")
+message("==============================")
 
 for (sh in sheets) {
-  
-  message("\n==============================")
-  message("Processing sheet: ", sh)
-  message("==============================")
   
   species_name <- sh
   
@@ -56,9 +52,8 @@ for (sh in sheets) {
     silent = TRUE
   )
   study_type <- if (!inherits(meta_raw, "try-error") && nrow(meta_raw) > 0) as.character(meta_raw[[1,1]]) else "Unknown"
-  message("  -> Data type detected: ", study_type)
   
-  ## ---- Read data ----
+  ## Read data
   df_raw <- try(
     read_excel(excel_file, sheet = sh, skip = 1, col_names = TRUE),
     silent = TRUE
@@ -76,35 +71,79 @@ for (sh in sheets) {
     next
   }
   
-  ## -------------------------------
-  ## Attempt full demographic analysis
-  ## -------------------------------
+  ## Prepare demographic inputs (Includes age=0 if present in data)
+  demog <- try(prepare_demography_data_from_df(dat = df, input_type = "auto"), silent = TRUE)
+  
+  if (inherits(demog, "try-error")) {
+    message("  -> ERROR preparing demography for: ", sh)
+    next
+  }
+  
+  # Cap the maximum survival rate to avoid exact 1.0
+  demog$sx[demog$sx >= 1] <- 0.9999 
+  
+  ## Basic validity checks
+  if (!any(is.finite(demog$sx))) {
+    message("  -> SKIP: All sx values are non-finite for ", sh)
+    next
+  }
+  if (!any(is.finite(demog$fx))) {
+    message("  -> SKIP: All fx values are non-finite for ", sh)
+    next
+  }
+  
+  # Save to the processed list
+  processed_data[[species_name]] <- list(
+    study_type = study_type,
+    demog      = demog
+  )
+  message("  -> Pre-processed OK: ", species_name, " (Type: ", study_type, ")")
+}
+
+
+## =========================================================
+## LOOP 1: CALCULATIONS
+## Filter age=0 exclusively for MPM building and run models
+## =========================================================
+message("\n==============================")
+message("Starting Calculation Loop...")
+message("==============================")
+
+for (species_name in names(processed_data)) {
+  
+  message("Calculating models for: ", species_name)
+  demog <- processed_data[[species_name]]$demog
+  sh <- species_name
+  
   res <- try({
-    ## 1. Prepare demographic inputs
-    demog <- prepare_demography_data_from_df(dat = df, input_type = "auto")
     
-    # Cap the maximum survival rate to avoid exact 1.0
-    demog$sx[demog$sx >= 1] <- 0.9999 
+    ## ---------------------------------------------------------
+    ## Filter out age=0 EXCLUSIVELY for building MPMs
+    ## ---------------------------------------------------------
+    build_ages <- demog$ages
+    build_sx   <- demog$sx
+    build_fx   <- demog$fx
     
-    ## Basic validity checks
-    if (!any(is.finite(demog$sx))) stop("All sx values are non-finite")
-    if (!any(is.finite(demog$fx))) stop("All fx values are non-finite")
+    if (length(build_ages) > 0 && build_ages[1] == 0) {
+      build_ages <- build_ages[-1]
+      build_sx   <- build_sx[-1]
+      build_fx   <- build_fx[-1]
+    }
     
-    ## 2. Build MPMs for four senescence scenarios
-    mpm_sen <- build_MPM_senescence(ages = demog$ages, sx = demog$sx, fx = demog$fx)
-    mpm_no_peak <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
-    mpm_no_early <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$early_onset)
-    mpm_no_late <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$late_onset)
+    ## Build MPMs for four senescence scenarios using FILTERED data
+    mpm_sen      <- build_MPM_senescence(ages = build_ages, sx = build_sx, fx = build_fx)
+    mpm_no_peak  <- build_MPM_no_senescence(ages = build_ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    mpm_no_early <- build_MPM_no_senescence(ages = build_ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$early_onset)
+    mpm_no_late  <- build_MPM_no_senescence(ages = build_ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$late_onset)
     
-    ## 3. Create species vector for plotting
-    species_vectors <- list(
-      sen      = list(ages = demog$ages, sx = mpm_sen$sx,      fx = mpm_sen$fx),
-      no_peak  = list(ages = demog$ages, sx = mpm_no_peak$sx,  fx = mpm_no_peak$fx),
-      no_early = list(ages = demog$ages, sx = mpm_no_early$sx, fx = mpm_no_early$fx),
-      no_late  = list(ages = demog$ages, sx = mpm_no_late$sx,  fx = mpm_no_late$fx)
-    )
+    ## Save built matrices back into our list so we can plot them directly in Loop 2
+    processed_data[[species_name]]$mpm_sen      <- mpm_sen
+    processed_data[[species_name]]$mpm_no_peak  <- mpm_no_peak
+    processed_data[[species_name]]$mpm_no_early <- mpm_no_early
+    processed_data[[species_name]]$mpm_no_late  <- mpm_no_late
+    processed_data[[species_name]]$build_ages   <- build_ages # Save filtered ages for plotting
     
-    ## 4. Summary statistics
+    ## Summary statistics
     summary_df <- compute_sensitivity_table(
       U_sen        = mpm_sen$U,
       U_no_peak    = mpm_no_peak$U,
@@ -123,9 +162,6 @@ for (sh in sheets) {
     summary_df 
   }) #<- end of try()
   
-  
-  ## 4. Save section (outside try() but inside for() )
-  
   if (!inherits(res, "try-error")) {
     message("  -> OK: added species ", species_name)
     
@@ -140,40 +176,67 @@ for (sh in sheets) {
     )
   } else {
     message("  -> ERROR on species ", species_name)
+    message("     ", conditionMessage(attr(res, "condition")))
+  }
+} 
+
+## =========================================================
+## LOOP 2: PLOTTING
+## Generate diagnostic species plots using filtered MPM data
+## =========================================================
+message("\n==============================")
+message("Starting Plotting Loop...")
+message("==============================")
+
+for (species_name in names(processed_data)) {
+  
+  mpm_sen <- processed_data[[species_name]]$mpm_sen
+  
+  # Skip if matrices were not built successfully
+  if (is.null(mpm_sen)) {
+    next
   }
   
+  build_ages   <- processed_data[[species_name]]$build_ages
+  mpm_no_peak  <- processed_data[[species_name]]$mpm_no_peak
+  mpm_no_early <- processed_data[[species_name]]$mpm_no_early
+  mpm_no_late  <- processed_data[[species_name]]$mpm_no_late
+  sh           <- species_name
+  
   # Diagnostic plots for each species
-  if (!is.null(species_vectors$sen) && length(species_vectors) >= 3) {
-    spec_dir <- file.path(species_plots_dir, gsub(" ", "_", sh))
-    if (!dir.exists(spec_dir)) dir.create(spec_dir)
-    
-    plot_colors <- c("Senescence" = "#BEBEBE", "No Peak" = "#56B4E9", "No Early" = "#E69F00", "No Late" = "#009E73")
-    
-    diag_df <- data.frame(Age = species_vectors$sen$ages, sx_sen = species_vectors$sen$sx, fx_sen = species_vectors$sen$fx,
-                          sx_no_peak = species_vectors$no_peak$sx, fx_no_peak = species_vectors$no_peak$fx,
-                          sx_early = species_vectors$no_early$sx, fx_early = species_vectors$no_early$fx,
-                          sx_late = species_vectors$no_late$sx, fx_late = species_vectors$no_late$fx)
-    
-    p_sx <- ggplot(diag_df, aes(x = Age)) +
-      geom_line(aes(y = sx_sen, color = "Senescence"), size = 1.2) +
-      geom_line(aes(y = sx_no_peak, color = "No Peak"),size=1.2) +
-      geom_line(aes(y = sx_early, color = "No Early"), size = 1.2) +
-      geom_line(aes(y = sx_late, color = "No Late"), size = 1.2) + theme_bw() + labs(title = paste(sh, "sx"))
-    
-    p_fx <- ggplot(diag_df, aes(x = Age)) +
-      geom_line(aes(y = fx_sen, color = "Senescence"), size = 1.2) +
-      geom_line(aes(y = fx_no_peak, color = "No Peak"),size=1.2) +
-      geom_line(aes(y = fx_early, color = "No Early"), size = 1.2) +
-      geom_line(aes(y = fx_late, color = "No Late"), size = 1.2) +  theme_bw() + labs(title = paste(sh, "fx"))
-    
-    ggsave(file.path(spec_dir, "sx_compare.png"), p_sx, width = 6, height = 4)
-    ggsave(file.path(spec_dir, "fx_compare.png"), p_fx, width = 6, height = 4)
-  }
-} ##<--- end of the FOR loop
+  spec_dir <- file.path(species_plots_dir, gsub(" ", "_", sh))
+  if (!dir.exists(spec_dir)) dir.create(spec_dir)
+  
+  plot_colors <- c("Senescence" = "#BEBEBE", "No Peak" = "#56B4E9", "No Early" = "#E69F00", "No Late" = "#009E73")
+  
+  diag_df <- data.frame(Age = build_ages, sx_sen = mpm_sen$sx, fx_sen = mpm_sen$fx,
+                        sx_no_peak = mpm_no_peak$sx, fx_no_peak = mpm_no_peak$fx,
+                        sx_early = mpm_no_early$sx, fx_early = mpm_no_early$fx,
+                        sx_late = mpm_no_late$sx, fx_late = mpm_no_late$fx)
+  
+  p_sx <- ggplot(diag_df, aes(x = Age)) +
+    geom_line(aes(y = sx_sen, color = "Senescence"), size = 1.2) +
+    geom_line(aes(y = sx_no_peak, color = "No Peak"),size=1.2) +
+    geom_line(aes(y = sx_early, color = "No Early"), size = 1.2) +
+    geom_line(aes(y = sx_late, color = "No Late"), size = 1.2) + theme_bw() + labs(title = paste(sh, "sx"))
+  
+  p_fx <- ggplot(diag_df, aes(x = Age)) +
+    geom_line(aes(y = fx_sen, color = "Senescence"), size = 1.2) +
+    geom_line(aes(y = fx_no_peak, color = "No Peak"),size=1.2) +
+    geom_line(aes(y = fx_early, color = "No Early"), size = 1.2) +
+    geom_line(aes(y = fx_late, color = "No Late"), size = 1.2) +  theme_bw() + labs(title = paste(sh, "fx"))
+  
+  ggsave(file.path(spec_dir, "sx_compare.png"), p_sx, width = 6, height = 4)
+  ggsave(file.path(spec_dir, "fx_compare.png"), p_fx, width = 6, height = 4)
+  
+  message("  -> Plotted diagnostic graphics for ", sh)
+}
 
 ## -------------------------------
 ## 4. Compile Results & Export
 ## -------------------------------
+message("\nCompiling final results and generating summary figures...")
+
 all_res <- do.call(rbind, comparison_results)
 # Calculate percentage change relative to Senescence
 df_relative <- all_res %>%
