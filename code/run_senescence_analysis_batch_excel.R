@@ -1,18 +1,18 @@
 ## =========================================================
-## run_senescence_analysis_batch_excel.R (Updated 03/03/2026)
+## run_senescence_analysis_batch_excel.R (Updated 03/30/2026)
 ## Batch analysis for multiple species stored in different
 ## sheets of a single Excel file.
 ##
 ## Updated to use:
-## 1. senescence_compute.R (Data prep, MPM build, lifespandist) ###CH: There is currently no file called senescence_compute.R
-## 2. senescence_plot.R   (ggplot2 visualization)
+## 1. senescence_compute.R (Data prep, MPM build, lifespandist) 
+## 2. senescence_plot.R    (ggplot2 visualization)
 ## 3. LuckFunctions.R      (Moments calculation)
 ## 4. distTraitCondR.R
 ## =========================================================
 
-###CH Comments from Chrissy will be tagged with a triple comment symbol and "CH"
-###so that you can ctrl+F to find them (or use Edit->Find in Files to search all
-###files in this directory)
+### CH: Comments from Chrissy will be tagged with a triple comment symbol and "CH"
+### so that you can ctrl+F to find them (or use Edit->Find in Files to search all
+### files in this directory)
 
 rm(list = ls())
 
@@ -31,10 +31,13 @@ library(exactLTRE)
 ## -------------------------------
 ## Configuration
 ## -------------------------------
-excel_file <- "data/Jones2014.xls" 
-output_dir <- "Results/senescence analysis"
+excel_file  <- "data/Jones2014.xls" 
+output_dir  <- "Results/senescence analysis"
+species_dir <- file.path(output_dir, "species_plots") # Ensure directory path is defined
 
-
+# Create directories if they do not exist
+if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+if (!dir.exists(species_dir)) dir.create(species_dir, recursive = TRUE)
 
 ## -------------------------------
 ## Load required functions (UPDATED)
@@ -56,19 +59,19 @@ source("code/senescence_plot.R")
 sheets <- excel_sheets(excel_file)
 message("Found sheets: ", paste(sheets, collapse = ", "))
 
-all_results <- list() #store results
+all_results    <- list() # Store global summary results
+processed_data <- list() # Store pre-processed data and MPMs
 
 
-## -------------------------------
-## Loop over sheets (Calculations)
-## -------------------------------
-
+## =========================================================
+## PRE-PROCESSING LOOP
+## Read data and prepare demography once (KEEPING age=0)
+## =========================================================
+message("\n==============================")
+message("Starting Pre-processing...")
+message("==============================")
 
 for (sh in sheets) {
-  
-  message("\n==============================")
-  message("Processing sheet: ", sh)
-  message("==============================")
   
   species_name <- sh
   
@@ -77,9 +80,8 @@ for (sh in sheets) {
     silent = TRUE
   )
   study_type <- if (!inherits(meta_raw, "try-error") && nrow(meta_raw) > 0) as.character(meta_raw[[1,1]]) else "Unknown"
-  message("  -> Data type detected: ", study_type)
   
-  ## ---- Read data ----
+  ## Read data
   df_raw <- try(
     read_excel(excel_file, sheet = sh, skip = 1, col_names = TRUE),
     silent = TRUE
@@ -97,27 +99,89 @@ for (sh in sheets) {
     next
   }
   
-  ## -------------------------------
-  ## Attempt full demographic analysis
-  ## -------------------------------
+  ## Prepare demographic inputs (Includes age=0 if present in data)
+  demog <- try(prepare_demography_data_from_df(dat = df, input_type = "auto"), silent = TRUE)
+  
+  if (inherits(demog, "try-error")) {
+    message("  -> ERROR preparing demography for: ", sh)
+    next
+  }
+  
+  # Cap the maximum survival rate to avoid exact 1.0
+  demog$sx[demog$sx >= 1] <- 0.9999 
+  
+  ## Basic validity checks
+  if (!any(is.finite(demog$sx))) {
+    message("  -> SKIP: All sx values are non-finite for ", sh)
+    next
+  }
+  if (!any(is.finite(demog$fx))) {
+    message("  -> SKIP: All fx values are non-finite for ", sh)
+    next
+  }
+  
+  # Save to the processed list
+  processed_data[[species_name]] <- list(
+    study_type = study_type,
+    demog      = demog
+  )
+  message("  -> Pre-processed OK: ", species_name, " (Type: ", study_type, ")")
+}
+
+
+## =========================================================
+## LOOP 1: CALCULATIONS
+## Calculate matrices, extract sx/fx, and save summaries
+## =========================================================
+message("\n==============================")
+message("Starting Calculation Loop...")
+message("==============================")
+
+for (species_name in names(processed_data)) {
+  
+  message("Calculating models for: ", species_name)
+  demog <- processed_data[[species_name]]$demog
+  
   res <- try({
-    ## 1. Prepare demographic inputs
-    demog <- prepare_demography_data_from_df(dat = df, input_type = "auto")
     
-    # Cap the maximum survival rate to avoid exact 1.0
-    demog$sx[demog$sx >= 1] <- 0.9999 
+    ## Export individual sx and fx csv for each age (INCLUDING age=0)
+    sx_fx_df <- data.frame(
+      age = demog$ages,
+      sx  = demog$sx,
+      fx  = demog$fx
+    )
+    write.csv(
+      sx_fx_df,
+      file = file.path(output_dir, paste0(species_name, "_sx_fx.csv")),
+      row.names = FALSE
+    )
     
-    ## Basic validity checks
-    if (!any(is.finite(demog$sx))) stop("All sx values are non-finite")
-    if (!any(is.finite(demog$fx))) stop("All fx values are non-finite")
+    ## ---------------------------------------------------------
+    ## Filter out age=0 EXCLUSIVELY for building MPMs
+    ## ---------------------------------------------------------
+    build_ages <- demog$ages
+    build_sx   <- demog$sx
+    build_fx   <- demog$fx
     
-    ## 2. Build MPMs for four senescence scenarios
-    mpm_sen <- build_MPM_senescence(ages = demog$ages, sx = demog$sx, fx = demog$fx)
-    mpm_no <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
-    mpm_noA_yesR <- build_MPM_no_actuarial_yes_reproductive(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
-    mpm_yesA_noR <- build_MPM_yes_actuarial_no_reproductive(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    if (length(build_ages) > 0 && build_ages[1] == 0) {
+      build_ages <- build_ages[-1]
+      build_sx   <- build_sx[-1]
+      build_fx   <- build_fx[-1]
+    }
     
-    ## 3. Summary statistics
+    ## Build MPMs for four senescence scenarios using FILTERED data
+    mpm_sen      <- build_MPM_senescence(ages = build_ages, sx = build_sx, fx = build_fx)
+    mpm_no       <- build_MPM_no_senescence(ages = build_ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    mpm_noA_yesR <- build_MPM_no_actuarial_yes_reproductive(ages = build_ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    mpm_yesA_noR <- build_MPM_yes_actuarial_no_reproductive(ages = build_ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
+    
+    ## Save built matrices back into our list so we can plot them directly in Loop 2!
+    processed_data[[species_name]]$mpm_sen      <- mpm_sen
+    processed_data[[species_name]]$mpm_no       <- mpm_no
+    processed_data[[species_name]]$mpm_noA_yesR <- mpm_noA_yesR
+    processed_data[[species_name]]$mpm_yesA_noR <- mpm_yesA_noR
+    
+    ## Summary statistics
     summary_df <- compute_summary_table(
       U_sen        = mpm_sen$U,
       U_no         = mpm_no$U,
@@ -131,36 +195,30 @@ for (sh in sheets) {
     )
     
     summary_df$species <- species_name
-    summary_df$sheet   <- sh
+    summary_df$sheet   <- species_name
     
     summary_df 
-  }) #<- end of try()
+  }) # <- end of try()
   
   
-    ## 4. Save section (outside try() but inside for() )
- 
   if (!inherits(res, "try-error")) {
-    message("  -> OK: added species ", species_name)
+    message("  -> OK: completed summary stats for ", species_name)
     
-    # 1. Save 'res' into the global list using species_name as the key
     all_results[[species_name]] <- res
     
-    # 2. Save individual CSV for this species
+    # Save individual CSV for this species
     write.csv(
       res,
       file = file.path(output_dir, paste0(species_name, "_summary_stats.csv")),
       row.names = FALSE
     )
   } else {
-    message("  -> ERROR on species ", species_name)
+    message("  -> ERROR on calculations for species ", species_name)
+    message("     ", conditionMessage(attr(res, "condition")))
   }
-  
-} # <--- END of the for loop! 
+}
 
-
-## -------------------------------
 ## Combine global summary table
-## -------------------------------
 if (length(all_results) == 0) {
   warning("No species produced valid summary results. No global summary created.")
 } else {
@@ -174,75 +232,51 @@ if (length(all_results) == 0) {
 }
 
 
-    
-    ## -------------------------------
-    ## ---- Plotting ----
-    ## -------------------------------
+## =========================================================
+## LOOP 2: PLOTTING
+## Use the already processed data and matrices to generate plots
+## =========================================================
+message("\n==============================")
+message("Starting Plotting Loop...")
+message("==============================")
+
+for (species_name in names(processed_data)) {
   
-###CH: Why does it need to process again before plotting? Why not load the
-###saved/processed data and plot that? Processing twice means that any changes
-###to processing have to be implemented in both places, and it's potentially a
-###waste of time/computing power. But if there's a good reason, let's discuss.
-for (sh in sheets) {
+  message("Plotting results for: ", species_name)
   
-  message("\n==============================")
-  message("Processing sheet: ", sh)
-  message("==============================")
+  # Load saved variables from the list
+  demog        <- processed_data[[species_name]]$demog
+  mpm_sen      <- processed_data[[species_name]]$mpm_sen
+  mpm_no       <- processed_data[[species_name]]$mpm_no
+  mpm_noA_yesR <- processed_data[[species_name]]$mpm_noA_yesR
+  mpm_yesA_noR <- processed_data[[species_name]]$mpm_yesA_noR
   
-  species_name <- sh
-  
-  meta_raw <- try(
-    read_excel(excel_file, sheet = sh, range = "E1", col_names = FALSE),
-    silent = TRUE
-  )
-  study_type <- if (!inherits(meta_raw, "try-error") && nrow(meta_raw) > 0) as.character(meta_raw[[1,1]]) else "Unknown"
-  message("  -> Data type detected: ", study_type)
-  
-  ## ---- Read data ----
-  df_raw <- try(
-    read_excel(excel_file, sheet = sh, skip = 1, col_names = TRUE),
-    silent = TRUE
-  )
-  
-  if (inherits(df_raw, "try-error")) {
-    message("  -> ERROR reading sheet: ", sh)
+  # Skip if matrices were not built successfully
+  if (is.null(mpm_sen)) {
+    message("  -> SKIP Plotting: Missing MPM data for ", species_name)
     next
   }
   
-  df <- as.data.frame(df_raw)
-  
-  if (!("x" %in% names(df))) {
-    message("  -> SKIP: sheet ", sh, " has no 'x' column.")
-    next
-  }
-  
-  ## -------------------------------
-  ## Attempt full demographic analysis
-  ## -------------------------------
   res <- try({
-    ## 1. Prepare demographic inputs
-    demog <- prepare_demography_data_from_df(dat = df, input_type = "auto")
     
-    # Source shield: Cap the maximum survival rate to avoid exact 1.0
-    demog$sx[demog$sx >= 1] <- 0.9999 
+    ## ---------------------------------------------------------
+    ## Filter out age=0 for plotting to match MPM dimensions
+    ## ---------------------------------------------------------
+    plot_ages <- demog$ages
+    plot_sx   <- demog$sx
+    plot_fx   <- demog$fx
     
-    ## Basic validity checks
-    if (!any(is.finite(demog$sx))) stop("All sx values are non-finite")
-    if (!any(is.finite(demog$fx))) stop("All fx values are non-finite")
-    
-    ## 2. Build MPMs for four senescence scenarios
-    mpm_sen <- build_MPM_senescence(ages = demog$ages, sx = demog$sx, fx = demog$fx)
-    mpm_no <- build_MPM_no_senescence(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
-    mpm_noA_yesR <- build_MPM_no_actuarial_yes_reproductive(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
-    mpm_yesA_noR <- build_MPM_yes_actuarial_no_reproductive(ages = demog$ages, sx_senescence = mpm_sen$sx, fx_senescence = mpm_sen$fx, senescence_onset_age = demog$senescence_onset_age)
-    
-    if (!dir.exists(species_dir)) dir.create(species_dir, recursive = TRUE)
+    if (length(plot_ages) > 0 && plot_ages[1] == 0) {
+      plot_ages <- plot_ages[-1]
+      plot_sx   <- plot_sx[-1]
+      plot_fx   <- plot_fx[-1]
+    }
     
     ## 4a. Survival (senescence vs no-senescence)
     p_surv2 <- plot_survival_models(
-      ages        = demog$ages,
-      sx_sen      = mpm_sen$sx,
-      sx_no       = mpm_no$sx,
+      ages         = plot_ages,
+      sx_sen       = mpm_sen$sx,
+      sx_no        = mpm_no$sx,
       species_name = species_name
     )
     ggsave(
@@ -252,7 +286,7 @@ for (sh in sheets) {
     
     ## 4a-2. Fecundity (senescence vs no-senescence)
     p_fec2 <- plot_fecundity_models(
-      ages         = demog$ages,
+      ages         = plot_ages,
       fx_sen       = mpm_sen$fx,
       fx_no        = mpm_no$fx,
       species_name = species_name
@@ -263,7 +297,7 @@ for (sh in sheets) {
     )
     
     ## 4b. Lifespan distributions (two-model)
-    # Using exact matrix method (from senescence_compute) ###CH: senescence_compute doesn't exist??
+    # Using exact matrix method 
     p_LS <- plot_lifespan_distributions(
       U_sen   = mpm_sen$U,
       U_no    = mpm_no$U
@@ -273,18 +307,18 @@ for (sh in sheets) {
       p_LS, width = 7, height = 5, dpi = 300, bg = "white"
     )
     
-    ## 4c-0
-    ## ---- Automatic maxClutchSize / maxLRO (for Plotting Grid) ----
-    fx <- demog$fx
-    sx <- demog$sx
-    ages <- demog$ages
+    ## 4c-0. Automatic maxClutchSize / maxLRO (for Plotting Grid) 
+    ## Note: using filtered plot_fx and plot_sx to match MPM space
+    fx   <- plot_fx
+    sx   <- plot_sx
+    ages <- plot_ages
     
-    # max clutch size
+    # Max clutch size
     max_fx = max(as.numeric(fx), na.rm=TRUE)
     maxClutchSize <- qpois(0.999999, max_fx)
     if (maxClutchSize < 5) maxClutchSize <- 5 # Minimum buffer
     
-    # survivorship lx
+    # Survivorship lx
     n_age <- length(sx)
     lx <- numeric(n_age)
     lx[1] <- 1
@@ -295,11 +329,11 @@ for (sh in sheets) {
     idx_m <- min(which(fx > 0))
     if (is.infinite(idx_m)) idx_m <- 1
     
-    # expected post-breeding LRO (unconditional estimate for grid sizing)
+    # Expected post-breeding LRO (unconditional estimate for grid sizing)
     expectLRO_post_uncond <- sum(lx[idx_m:n_age] * fx[idx_m:n_age], na.rm = TRUE)
     prob_reach_m <- lx[idx_m]
     
-    # conditional expectation given survival to maturity
+    # Conditional expectation given survival to maturity
     expectLRO_post_cond <- if (prob_reach_m > 0) {
       expectLRO_post_uncond / prob_reach_m
     } else {
@@ -308,18 +342,17 @@ for (sh in sheets) {
     
     if (is.na(expectLRO_post_cond) || expectLRO_post_cond == 0) expectLRO_post_cond <- 1
     
-    # max LRO support (heuristic for plotting limit)
+    # Max LRO support (heuristic for plotting limit)
     maxLRO <- ceiling(3 * expectLRO_post_cond)
     if (maxLRO < 20) maxLRO <- 20
     if (maxLRO > 100) maxLRO <- 100
     
     ## 4c-1. LRO: two-model comparison (analytical iterative, post-breeding)
-    # This now uses the efficient calcDistLRO_iterative inside plotting function
     p_LRO2 <- plot_LRO_distributions(
-      U_sen   = mpm_sen$U,
-      U_no    = mpm_no$U,
-      F_sen   = mpm_sen$F,
-      F_no    = mpm_no$F,
+      U_sen         = mpm_sen$U,
+      U_no          = mpm_no$U,
+      F_sen         = mpm_sen$F,
+      F_no          = mpm_no$F,
       maxClutchSize = maxClutchSize,    
       maxLRO        = maxLRO,
       include_zero  = TRUE
@@ -332,14 +365,14 @@ for (sh in sheets) {
     
     ## 4c-2. LRO: four-model comparison (analytical iterative, post-breeding)
     p_LRO4 <- plot_LRO_distributions_4(
-      U_sen        = mpm_sen$U,
-      U_no         = mpm_no$U,
-      U_noA_yesR   = mpm_noA_yesR$U,
-      U_yesA_noR   = mpm_yesA_noR$U,
-      F_sen        = mpm_sen$F,
-      F_no         = mpm_no$F,
-      F_noA_yesR   = mpm_noA_yesR$F,
-      F_yesA_noR   = mpm_yesA_noR$F,
+      U_sen         = mpm_sen$U,
+      U_no          = mpm_no$U,
+      U_noA_yesR    = mpm_noA_yesR$U,
+      U_yesA_noR    = mpm_yesA_noR$U,
+      F_sen         = mpm_sen$F,
+      F_no          = mpm_no$F,
+      F_noA_yesR    = mpm_noA_yesR$F,
+      F_yesA_noR    = mpm_yesA_noR$F,
       maxClutchSize = maxClutchSize,
       maxLRO        = maxLRO,
       include_zero  = TRUE
@@ -351,25 +384,11 @@ for (sh in sheets) {
       p_LRO4, width = 7, height = 5, dpi = 300, bg = "white"
     )
   }) # <--- end of try()
-    
   
-  ## -----------------------------------
-  ## Error handling
-  ## -----------------------------------
   if (inherits(res, "try-error")) {
-    message("  -> ERROR on species ", species_name)
+    message("  -> ERROR on plotting species ", species_name)
     message("     ", conditionMessage(attr(res, "condition")))
-    next
+  } else {
+    message("  -> OK: Plots generated for ", species_name)
   }
-  } # <--- end of loop
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+}
