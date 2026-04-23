@@ -110,16 +110,6 @@ prepare_demography_data_from_df <- function(dat, input_type="auto", study_type =
       sx[!is.finite(sx)] <- 0 
     }
   }
-  #Obtain s0(adjust sx according to whether life table starts at 0/1)
-  s0 <- if(0 %in% ages) sx[which(ages == 0)] else 1
-  sx <- sx * s0
-  keep_idx <- which(ages >= 1) #make all populations start at age=1
-
-  
-  ages <- ages[keep_idx]
-  sx   <- sx[keep_idx]
-  dat  <- dat[keep_idx, ]
-  
   # convert else NAs to 0
   sx[!is.finite(sx)] <-0
   
