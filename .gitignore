@@ -3,3 +3,6 @@
 .RData
 .Ruserdata
 WL-Mbiol-Project.Rproj
+*/.DS_Store
+*/*/.DS_Store
+.DS_Store
