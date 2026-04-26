@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 Species,Age,sx,fx
 Accipiter nisus,1,0.453,1.58
 Accipiter nisus,2,0.626,2.3
@@ -600,7 +599,7 @@ Rupicapra rupicapra,7,0.228571429,0.32248
 Rupicapra rupicapra,8,0.28,0.067666667
 Rupicapra rupicapra,9,0.228571429,0.067666667
 Rupicapra rupicapra,10,0,0.067666667
-=======
+=======,,,
 Species,Age,sx,fx
 Accipiter nisus,1,0.453,1.58
 Accipiter nisus,2,0.626,2.3
@@ -1202,4 +1201,3 @@ Rupicapra rupicapra,7,0.228571429,0.32248
 Rupicapra rupicapra,8,0.28,0.067666667
 Rupicapra rupicapra,9,0.228571429,0.067666667
 Rupicapra rupicapra,10,0,0.067666667
->>>>>>> 18394cc678b11d41ce1db349382e165fcad10d10
