@@ -1,13 +1,13 @@
-"Metric","Comparison","Lambda","P_Value"
-"mean_lifespan","Senescence vs No-senescence",-1.7011,0
-"var_lifespan","Senescence vs No-senescence",-1.6574,0
-"skew_lifespan","Senescence vs No-senescence",-0.466,0.0302
-"mean_LRO","Senescence vs No-senescence",0.3612,0.0458
-"mean_LRO","Senescence vs No-actuarial/Yes-reproductive",-0.3633,0
-"mean_LRO","Senescence vs Yes-actuarial/No-reproductive",-1.4427,0
-"var_LRO","Senescence vs No-senescence",-0.363,0
-"var_LRO","Senescence vs No-actuarial/Yes-reproductive",-0.2248,0
-"var_LRO","Senescence vs Yes-actuarial/No-reproductive",-1.6313,0
-"skew_LRO","Senescence vs No-senescence",0.2342,0.0269
-"skew_LRO","Senescence vs No-actuarial/Yes-reproductive",-0.1983,0
-"skew_LRO","Senescence vs Yes-actuarial/No-reproductive",-1.7491,0
+"Metric","Comparison","N","Mean_Diff","t","P_Value","Lambda","Lambda_P"
+"mean_lifespan","Senescence vs No-senescence",16,7.4134,0.973,0.3458,1e-04,1
+"var_lifespan","Senescence vs No-senescence",16,151543.14,0.999,0.3338,1e-04,1
+"skew_lifespan","Senescence vs No-senescence",16,0.2765,0.226,0.8245,1e-04,1
+"mean_LRO","Senescence vs No-senescence",16,-0.0675,-3.953,0.0013,0.3612,0.1471
+"mean_LRO","Senescence vs No-actuarial/Yes-reproductive",16,0.0055,0.442,0.6647,1e-04,1
+"mean_LRO","Senescence vs Yes-actuarial/No-reproductive",16,-1.1161,-1.035,0.317,1e-04,1
+"var_LRO","Senescence vs No-senescence",16,-1.0359,-2.516,0.0237,1e-04,1
+"var_LRO","Senescence vs No-actuarial/Yes-reproductive",16,-0.3224,-0.928,0.3679,1e-04,1
+"var_LRO","Senescence vs Yes-actuarial/No-reproductive",16,-3058.9077,-1,0.3331,1e-04,1
+"skew_LRO","Senescence vs No-senescence",16,-0.3234,-3.888,0.0015,0.2345,0.3605
+"skew_LRO","Senescence vs No-actuarial/Yes-reproductive",16,-0.116,-1.256,0.2285,1e-04,1
+"skew_LRO","Senescence vs Yes-actuarial/No-reproductive",16,-1.1486,-1.043,0.3136,1e-04,1

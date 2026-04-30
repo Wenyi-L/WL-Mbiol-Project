@@ -4,9 +4,9 @@
 ## Purpose: 
 ## 1. Build and Plot Phylogeny (Original Tree, NO modifications!)
 ## 2. Clean data (remove brackets, underscores, duplicates)
-## 3. Run PGLS (corPagel) - lambda estimated via ML, following 
-##    Harmon (2015) PGLS tutorial: 
-##    https://lukejharmon.github.io/ilhabela/instruction/2015/07/03/PGLS/
+## 3. Test phylogenetic signal (Pagel's lambda via phylosig)
+## 4. Run one-sample t-tests on model-difference values 
+##    (PGLS not warranted because lambda ~ 0 in all comparisons)
 ## =========================================================
 
 # Load required libraries
@@ -14,6 +14,7 @@ library(readxl)
 library(rotl)
 library(ape)
 library(nlme)
+library(phytools)   # for phylosig()
 
 ##-----------------------------------------
 ## 1. Build and Plot Phylogenetic Tree
@@ -42,7 +43,7 @@ data_all$species <- gsub("\\s*\\(.*?\\)", "", data_all$species)
 data_all$species <- gsub("_", " ", data_all$species)
 
 ##-----------------------------------------
-## 3. Define PGLS Function (corPagel - estimates lambda via ML)
+## 3. Define analysis function: signal test + one-sample t-test
 ##-----------------------------------------
 get_pgls_row <- function(metric_name, comp_model_name) {
   
@@ -73,53 +74,48 @@ get_pgls_row <- function(metric_name, comp_model_name) {
   # Prune tree to match data safely
   pruned_tree <- keep.tip(my_tree_brlen, df_diff$species)
   
-  # Rescale branch lengths (Harmon tutorial fix)
-  tempTree <- pruned_tree
-  tempTree$edge.length <- tempTree$edge.length * 1000
+  # ---- Phylogenetic Signal: Pagel's lambda via phylosig() ----
+  # Kept as justification for using non-phylogenetic tests.
+  trait_vec <- df_diff$diff_val
+  names(trait_vec) <- df_diff$species
   
-  # gls control: use optim (more robust than default nlminb for 
-  # intercept-only models), allow more iterations, looser tolerance.
-  gls_ctrl <- list(opt = "optim", maxIter = 200, msMaxIter = 200,
-                   tolerance = 1e-6, msTol = 1e-6)
+  lambda_test <- tryCatch(
+    phylosig(pruned_tree, trait_vec, method = "lambda", test = TRUE),
+    error = function(e) NULL,
+    warning = function(w) NULL
+  )
+  lambda_val <- if (!is.null(lambda_test)) lambda_test$lambda else NA
+  lambda_p   <- if (!is.null(lambda_test)) lambda_test$P      else NA
+  # ------------------------------------------------------------
   
-  # Try several starting values for lambda. tryCatch handles BOTH 
-  # errors (NA/NaN/Inf) and convergence failures (false convergence).
-  pgls_model <- NULL
-  for (lam_init in c(0.5, 0.3, 0.1, 0.7, 0)) {
-    pgls_model <- tryCatch(
-      gls(diff_val ~ 1, 
-          data = df_diff, 
-          correlation = corPagel(value = lam_init, phy = tempTree, 
-                                 form = ~species, fixed = FALSE), 
-          method = "ML",
-          control = gls_ctrl),
-      error = function(e) NULL,
-      warning = function(w) NULL
-    )
-    if (!is.null(pgls_model)) break
+  # ---- One-sample t-test: is mean difference != 0? ----
+  # Used instead of PGLS because lambda ~ 0 in all comparisons,
+  # so phylogenetic correction is not warranted.
+  t_test <- tryCatch(
+    t.test(df_diff$diff_val, mu = 0),
+    error = function(e) NULL
+  )
+  
+  if (is.null(t_test)) {
+    mean_diff <- mean(df_diff$diff_val, na.rm = TRUE)
+    t_stat    <- NA
+    p_val     <- NA
+  } else {
+    mean_diff <- as.numeric(t_test$estimate)
+    t_stat    <- as.numeric(t_test$statistic)
+    p_val     <- as.numeric(t_test$p.value)
   }
-  
-  if (is.null(pgls_model)) {
-    return(data.frame(
-      Metric     = metric_name,
-      Comparison = paste("Senescence vs", comp_model_name),
-      Lambda     = NA,
-      P_Value    = NA,
-      stringsAsFactors = FALSE
-    ))
-  }
-  
-  # Extract intercept p-value
-  p_val <- summary(pgls_model)$tTable[1, 4]
-  
-  # Extract estimated lambda from the fitted correlation structure
-  lambda_val <- coef(pgls_model$modelStruct$corStruct, unconstrained = FALSE)[[1]]
+  # ------------------------------------------------------
   
   return(data.frame(
     Metric     = metric_name,
     Comparison = paste("Senescence vs", comp_model_name),
-    Lambda     = round(lambda_val, 4),
+    N          = nrow(df_diff),
+    Mean_Diff  = round(mean_diff, 4),
+    t          = round(t_stat, 3),
     P_Value    = round(p_val, 4),
+    Lambda     = round(lambda_val, 4),
+    Lambda_P   = round(lambda_p, 4),
     stringsAsFactors = FALSE
   ))
 }
