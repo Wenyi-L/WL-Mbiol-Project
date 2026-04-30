@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 ## =========================================================
 ## run_phyloANOVA.R 
 ##
@@ -118,7 +118,7 @@ final_results_table <- do.call(rbind, results_list)
 ## 5. View and Export Results
 ##-----------------------------------------
 print(final_results_table)
-=======
+
 ## =========================================================
 ## run_phyloANOVA.R 
 ##
@@ -238,5 +238,5 @@ final_results_table <- do.call(rbind, results_list)
 ## 5. View and Export Results
 ##-----------------------------------------
 print(final_results_table)
->>>>>>> 18394cc678b11d41ce1db349382e165fcad10d10
+
 write.csv(final_results_table, "Results/PGLS_Analysis_Summary_Pagel.csv", row.names = FALSE)
