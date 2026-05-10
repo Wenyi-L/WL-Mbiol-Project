@@ -1,13 +1,13 @@
 "Metric","Comparison","N","Mean_Diff","t","P_Value","Lambda","Lambda_P"
-"mean_lifespan","Senescence vs No-senescence",16,7.4134,0.973,0.3458,1e-04,1
-"var_lifespan","Senescence vs No-senescence",16,151543.14,0.999,0.3338,1e-04,1
-"skew_lifespan","Senescence vs No-senescence",16,0.2765,0.226,0.8245,1e-04,1
-"mean_LRO","Senescence vs No-senescence",16,-0.0675,-3.953,0.0013,0.3612,0.1471
-"mean_LRO","Senescence vs No-actuarial/Yes-reproductive",16,0.0055,0.442,0.6647,1e-04,1
-"mean_LRO","Senescence vs Yes-actuarial/No-reproductive",16,-1.1161,-1.035,0.317,1e-04,1
-"var_LRO","Senescence vs No-senescence",16,-1.0359,-2.516,0.0237,1e-04,1
-"var_LRO","Senescence vs No-actuarial/Yes-reproductive",16,-0.3224,-0.928,0.3679,1e-04,1
-"var_LRO","Senescence vs Yes-actuarial/No-reproductive",16,-3058.9077,-1,0.3331,1e-04,1
-"skew_LRO","Senescence vs No-senescence",16,-0.3234,-3.888,0.0015,0.2345,0.3605
-"skew_LRO","Senescence vs No-actuarial/Yes-reproductive",16,-0.116,-1.256,0.2285,1e-04,1
-"skew_LRO","Senescence vs Yes-actuarial/No-reproductive",16,-1.1486,-1.043,0.3136,1e-04,1
+"mean_lifespan","Senescence vs No-senescence",15,7.9076,0.973,0.3469,1e-04,1
+"var_lifespan","Senescence vs No-senescence",15,161646.016,0.999,0.335,1e-04,1
+"skew_lifespan","Senescence vs No-senescence",15,0.2949,0.225,0.8251,1e-04,1
+"mean_LRO","Senescence vs No-senescence",15,-0.072,-4.089,0.0011,0.3172,0.2467
+"mean_LRO","Senescence vs No-actuarial/Yes-reproductive",15,0.0059,0.441,0.6657,1e-04,1
+"mean_LRO","Senescence vs Yes-actuarial/No-reproductive",15,-1.1905,-1.035,0.3181,1e-04,1
+"var_LRO","Senescence vs No-senescence",15,-1.105,-2.547,0.0233,1e-04,1
+"var_LRO","Senescence vs No-actuarial/Yes-reproductive",15,-0.3439,-0.928,0.369,1e-04,1
+"var_LRO","Senescence vs Yes-actuarial/No-reproductive",15,-3262.8349,-1,0.3342,1e-04,1
+"skew_LRO","Senescence vs No-senescence",15,-0.3449,-4.016,0.0013,0.1688,0.5638
+"skew_LRO","Senescence vs No-actuarial/Yes-reproductive",15,-0.1237,-1.257,0.2293,1e-04,1
+"skew_LRO","Senescence vs Yes-actuarial/No-reproductive",15,-1.2252,-1.043,0.3147,1e-04,1

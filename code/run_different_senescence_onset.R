@@ -304,7 +304,8 @@ df_relative <- all_res %>%
     ),
     
     # Set factor levels for correct plotting order
-    Model = factor(Model, levels = c("No-senescence-peak", "No-senescence-early", "No-senescence-late")),
+    Model = factor(Model, levels = c("No-senescence-early", "No-senescence-peak", "No-senescence-late"),
+                   labels = c("Early", "Peak fecundity", "Late")),
     Metric = factor(Metric, levels = c(
       "Mean Lifespan", "Variance Lifespan", "Skewness Lifespan", 
       "Mean LRO", "Variance LRO", "Skewness LRO"
@@ -325,9 +326,8 @@ create_comparison_plot <- function(data_subset, title_suffix) {
   ggplot(data_subset, aes(x = Model, y = pct_change)) +
     geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
     
-    # Violin and boxplots
-    geom_violin(aes(fill = Model), alpha = 0.2, color = NA) +
-    geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.5) +
+    # Boxplot with color fill
+    geom_boxplot(aes(fill = Model), width = 0.5, outlier.shape = NA, alpha = 0.5, color = "grey30", size = 0.4) +
     
     # Facet by specific metrics (Mean, Variance, Skewness)
     facet_wrap(~Metric, scales = "free_y", ncol = 3) +
@@ -339,17 +339,17 @@ create_comparison_plot <- function(data_subset, title_suffix) {
                        labels = function(x) paste0(round(x), "%")) +
     
     # Updated to match the current three model names
-    scale_fill_manual(values = c("No-senescence-peak"  = "#56B4E9", 
-                                 "No-senescence-early" = "#E69F00",
-                                 "No-senescence-late"  = "#009E73")) +
-    theme_bw(base_size = 12) +
+    scale_fill_manual(values = c("Early"           = "#E69F00", 
+                                 "Peak fecundity"  = "#56B4E9",
+                                 "Late"            = "#009E73")) +
+    theme_bw(base_size = 17) +
     
     coord_cartesian(clip = "off") +
     
     labs(title = paste("Methodological Sensitivity:", title_suffix),
          subtitle = "Distributions of relative differences",
          y = "Relative Difference (%)", 
-         x = "", 
+         x = "Age of onset of senescence", 
          fill = "Model") +
     
     theme(legend.position = "bottom", 
@@ -367,4 +367,3 @@ p_lro  <- create_comparison_plot(df_plot %>% filter(Trait_Code == "LRO"), "LRO")
 ggsave(file.path("Results/summary figures", "Summary_Lifespan_onset_of_senescence.png"), p_life, width = 14, height = 7)
 ggsave(file.path("Results/summary figures","Summary_LRO_Final_onset_of_senescence.png"), p_lro, width = 14, height = 7)
 message("Done! Files saved to: ", "Results/summary figures")
-

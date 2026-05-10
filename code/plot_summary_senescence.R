@@ -59,28 +59,18 @@ create_comparison_plot <- function(data, title, filename) {
   
   p <- ggplot(data, aes(x = metric, y = perc_diff)) +
     
-    # --- Layer 1: Violin (Background Color) ---
-    geom_violin(
-      position = position_dodge(width = dodge_w),
-      scale = "width",
-      trim = FALSE,
-      alpha = 0.5,       
-      color = NA,
-      aes(fill = metric)
-    ) +
-    
-    # --- Layer 2: Boxplot (Transparent Fill) ---
+    # --- Layer 1: Boxplot (Green Fill) ---
     geom_boxplot(
-      aes(group = metric), 
-      width = 0.2,
+      aes(fill = metric),
+      width = 0.5,
       position = position_dodge(width = dodge_w),
       outlier.shape = NA,
-      fill = "transparent",
       color = "grey30",
+      alpha = 0.5,
       size = 0.4
     ) +
     
-    # --- Layer 3: Jitter Points (Darker Colors) ---
+    # --- Layer 2: Jitter Points (Darker Colors) ---
     geom_point(
       aes(color = metric),
       position = position_jitterdodge(dodge.width = dodge_w, jitter.width = 0.2),
@@ -126,8 +116,8 @@ create_comparison_plot <- function(data, title, filename) {
 df_LS <- df_diff %>%
   filter(metric %in% c("mean_lifespan", "var_lifespan", "skew_lifespan")) %>%
   mutate(metric = factor(metric, 
-                               levels = c("mean_lifespan", "var_lifespan", "skew_lifespan"),
-                               labels = c("Mean", "Variance", "Skewness"))) %>%
+                         levels = c("mean_lifespan", "var_lifespan", "skew_lifespan"),
+                         labels = c("Mean", "Variance", "Skewness"))) %>%
   filter(!is.na(perc_diff))
 
 create_comparison_plot(df_LS, "Lifespan Sensitivity: Senescence VS No-senescence", "compare_lifespan_sen_nosen.png")
@@ -136,8 +126,8 @@ create_comparison_plot(df_LS, "Lifespan Sensitivity: Senescence VS No-senescence
 df_LRO <- df_diff %>%
   filter(metric %in% c("mean_LRO", "var_LRO", "skew_LRO")) %>%
   mutate(metric = factor(metric, 
-                               levels = c("mean_LRO", "var_LRO", "skew_LRO"),
-                               labels = c("Mean", "Variance", "Skewness"))) %>%
+                         levels = c("mean_LRO", "var_LRO", "skew_LRO"),
+                         labels = c("Mean", "Variance", "Skewness"))) %>%
   filter(!is.na(perc_diff))
 
 create_comparison_plot(df_LRO, "LRO Sensitivity: Senescence VS No-senescence", "compare_LRO_sen_nosen.png")

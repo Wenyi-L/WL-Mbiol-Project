@@ -50,20 +50,20 @@ df_relative <- df %>%
   mutate(
     # NOTE: Using backticks (`) to handle hyphens and slashes in column names
     
-    # 1. No-senescence vs Senescence
-    pct_diff_NoSen_Mean = (`mean_LRO_No-senescence` - mean_LRO_Senescence) / mean_LRO_Senescence,
-    pct_diff_NoSen_Var  = (`var_LRO_No-senescence` - var_LRO_Senescence)  / var_LRO_Senescence,
-    pct_diff_NoSen_Skew = (`skew_LRO_No-senescence` - skew_LRO_Senescence) / skew_LRO_Senescence,
+    # 1. Senescence vs No-senescence
+    pct_diff_NoSen_Mean = (mean_LRO_Senescence - `mean_LRO_No-senescence`) / mean_LRO_Senescence,
+    pct_diff_NoSen_Var  = (var_LRO_Senescence  - `var_LRO_No-senescence`)  / var_LRO_Senescence,
+    pct_diff_NoSen_Skew = (skew_LRO_Senescence - `skew_LRO_No-senescence`) / skew_LRO_Senescence,
     
-    # 2. No-Actuarial vs Senescence
-    pct_diff_NoAct_Mean = (`mean_LRO_No-actuarial/Yes-reproductive` - mean_LRO_Senescence) / mean_LRO_Senescence,
-    pct_diff_NoAct_Var  = (`var_LRO_No-actuarial/Yes-reproductive`  - var_LRO_Senescence)  / var_LRO_Senescence,
-    pct_diff_NoAct_Skew = (`skew_LRO_No-actuarial/Yes-reproductive` - skew_LRO_Senescence) / skew_LRO_Senescence,
+    # 2. Senescence vs No-Actuarial
+    pct_diff_NoAct_Mean = (mean_LRO_Senescence - `mean_LRO_No-actuarial/Yes-reproductive`) / mean_LRO_Senescence,
+    pct_diff_NoAct_Var  = (var_LRO_Senescence  - `var_LRO_No-actuarial/Yes-reproductive`)  / var_LRO_Senescence,
+    pct_diff_NoAct_Skew = (skew_LRO_Senescence - `skew_LRO_No-actuarial/Yes-reproductive`) / skew_LRO_Senescence,
     
-    # 3. Yes-Actuarial (No-Repro) vs Senescence
-    pct_diff_NoRep_Mean = (`mean_LRO_Yes-actuarial/No-reproductive` - mean_LRO_Senescence) / mean_LRO_Senescence,
-    pct_diff_NoRep_Var  = (`var_LRO_Yes-actuarial/No-reproductive`  - var_LRO_Senescence)  / var_LRO_Senescence,
-    pct_diff_NoRep_Skew = (`skew_LRO_Yes-actuarial/No-reproductive` - skew_LRO_Senescence) / skew_LRO_Senescence
+    # 3. Senescence vs Yes-Actuarial (No-Repro)
+    pct_diff_NoRep_Mean = (mean_LRO_Senescence - `mean_LRO_Yes-actuarial/No-reproductive`) / mean_LRO_Senescence,
+    pct_diff_NoRep_Var  = (var_LRO_Senescence  - `var_LRO_Yes-actuarial/No-reproductive`)  / var_LRO_Senescence,
+    pct_diff_NoRep_Skew = (skew_LRO_Senescence - `skew_LRO_Yes-actuarial/No-reproductive`) / skew_LRO_Senescence
   ) %>%
   select(species, starts_with("pct_diff")) %>%
   pivot_longer(cols = -species, names_to = "comparison", values_to = "pct_change") %>%
@@ -94,8 +94,7 @@ df_relative <- df %>%
 
 p2 <- ggplot(df_relative, aes(x = Model, y = pct_change, fill = Model)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") + 
-  geom_violin(trim = FALSE, alpha = 0.5, color = NA) +
-  geom_boxplot(width = 0.1, fill = "transparent", alpha = 0.8, outlier.shape = NA) +
+  geom_boxplot(width = 0.5, alpha = 0.5, outlier.shape = NA, color = "grey30", size = 0.4) +
   geom_jitter(width = 0.15, height = 0, size = 1.2, alpha = 0.4) +
   facet_wrap(~Metric, scales = "free_y") +
   # Pseudo-log scale for handling large variations
@@ -105,14 +104,14 @@ p2 <- ggplot(df_relative, aes(x = Model, y = pct_change, fill = Model)) +
     labels = scales::comma_format()
   ) +
   scale_fill_manual(values = MODEL_COLORS) +
-  theme_classic(base_size = 14) +
+  theme_classic(base_size = 17) +
   theme(
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     legend.position = "bottom",
     legend.direction = "vertical",
     strip.background = element_rect(fill = "grey90", color = NA),
-    strip.text = element_text(face = "bold", size = 12)
+    strip.text = element_text(face = "bold", size = 15)
   ) +
   labs(
     title = "Relative Impact of Models vs. Senescence Baseline",
