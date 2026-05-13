@@ -91,10 +91,10 @@ create_comparison_plot <- function(data, title, filename) {
     
     
     # Theme
-    theme_classic(base_size = 15) +
+    theme_classic(base_size = 25) +
     theme(
-      plot.title = element_text(face = "bold", size = 18, hjust = 0.5),
-      axis.title = element_text(face = "bold", size = 14),
+      plot.title = element_text(face = "bold", size = 28, hjust = 0.5),
+      axis.title = element_text(face = "bold", size = 24),
       legend.position = "top",
       legend.title = element_blank(),
       panel.grid.major.y = element_line(color = "grey90", linetype = "dashed")

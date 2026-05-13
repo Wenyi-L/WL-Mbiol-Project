@@ -104,14 +104,14 @@ p2 <- ggplot(df_relative, aes(x = Model, y = pct_change, fill = Model)) +
     labels = scales::comma_format()
   ) +
   scale_fill_manual(values = MODEL_COLORS) +
-  theme_classic(base_size = 17) +
+  theme_classic(base_size = 28) +
   theme(
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     legend.position = "bottom",
     legend.direction = "vertical",
     strip.background = element_rect(fill = "grey90", color = NA),
-    strip.text = element_text(face = "bold", size = 15)
+    strip.text = element_text(face = "bold", size = 25)
   ) +
   labs(
     title = "Relative Impact of Models vs. Senescence Baseline",
@@ -122,6 +122,6 @@ p2 <- ggplot(df_relative, aes(x = Model, y = pct_change, fill = Model)) +
   )
 
 # Save the plot
-ggsave(file.path(output_dir, "4models_Relative_Impact_LogScale.png"), p2, width = 10, height = 7, dpi = 300)
+ggsave(file.path(output_dir, "4models_Relative_Impact_LogScale.png"), p2, width = 16, height = 12, dpi = 300)
 
 message("Relative impact plot saved to: ", output_dir)

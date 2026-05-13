@@ -342,7 +342,7 @@ create_comparison_plot <- function(data_subset, title_suffix) {
     scale_fill_manual(values = c("Early"           = "#E69F00", 
                                  "Peak fecundity"  = "#56B4E9",
                                  "Late"            = "#009E73")) +
-    theme_bw(base_size = 17) +
+    theme_bw(base_size = 40) +
     
     coord_cartesian(clip = "off") +
     
@@ -357,13 +357,14 @@ create_comparison_plot <- function(data_subset, title_suffix) {
           # Left margin reduced to 10 since there are no left-aligned labels anymore
           plot.margin = margin(10, 10, 10, 10), 
           # Slightly tilt x-axis text to prevent overlapping
-          axis.text.x = element_text(angle = 15, hjust = 1)) 
+          axis.text.x = element_text(angle = 30, hjust = 1, face = "bold"),
+          strip.text = element_text(face = "bold")) 
 }
 
 # Use Trait_Code instead of Metric_Type for filtering
 p_life <- create_comparison_plot(df_plot %>% filter(Trait_Code == "Lifespan"), "Lifespan")
 p_lro  <- create_comparison_plot(df_plot %>% filter(Trait_Code == "LRO"), "LRO")
 
-ggsave(file.path("Results/summary figures", "Summary_Lifespan_onset_of_senescence.png"), p_life, width = 14, height = 7)
-ggsave(file.path("Results/summary figures","Summary_LRO_Final_onset_of_senescence.png"), p_lro, width = 14, height = 7)
+ggsave(file.path("Results/summary figures", "Summary_Lifespan_onset_of_senescence.png"), p_life, width = 25, height = 14)
+ggsave(file.path("Results/summary figures","Summary_LRO_Final_onset_of_senescence.png"), p_lro, width = 25, height = 14)
 message("Done! Files saved to: ", "Results/summary figures")
