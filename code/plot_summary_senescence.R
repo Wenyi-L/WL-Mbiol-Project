@@ -72,7 +72,7 @@ create_comparison_plot <- function(data, title, filename) {
     
     # --- Layer 2: Jitter Points (Darker Colors) ---
     geom_point(
-      aes(color = metric),
+      color = "grey60",
       position = position_jitterdodge(dodge.width = dodge_w, jitter.width = 0.2),
       size = 1.2, 
       alpha = 0.8

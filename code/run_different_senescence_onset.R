@@ -327,7 +327,21 @@ create_comparison_plot <- function(data_subset, title_suffix) {
     geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
     
     # Boxplot with color fill
-    geom_boxplot(aes(fill = Model), width = 0.5, outlier.shape = NA, alpha = 0.5, color = "grey30", size = 0.4) +
+    geom_boxplot(
+      aes(fill = Model), 
+      width = 0.5, 
+      outlier.shape = NA, 
+      alpha = 0.5, 
+      color = "grey30", 
+      size = 0.4) +
+    
+    #add data points to the graph
+    geom_point(
+      color = "grey60",          
+      alpha = 0.4,                
+      size = 1.5,                
+      position = position_jitter(width = 0.2) 
+    ) +
     
     # Facet by specific metrics (Mean, Variance, Skewness)
     facet_wrap(~Metric, scales = "free_y", ncol = 3) +
@@ -336,7 +350,9 @@ create_comparison_plot <- function(data_subset, title_suffix) {
     # so no need to multiply by 100 here. Just round it and add '%'. 
     # Sigma is set to 10 for better visualization on the percentage scale.
     scale_y_continuous(trans = scales::pseudo_log_trans(base = 10, sigma = 10),
-                       labels = function(x) paste0(round(x), "%")) +
+                       labels = function(x) {
+                         ifelse(x < -15000, "", paste0(round(x), "%"))
+                       }) +
     
     # Updated to match the current three model names
     scale_fill_manual(values = c("Early"           = "#E69F00", 
