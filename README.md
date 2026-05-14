@@ -1,4 +1,9 @@
 
+14/5 Finalisation
+
+Removed populations of which data were derived from age-from-stage models.
+
+
 24/02/2026 Update:
 -Cleaned my respository
 
