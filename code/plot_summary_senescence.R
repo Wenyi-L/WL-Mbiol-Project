@@ -4,6 +4,7 @@
 
 rm(list = ls())
 
+setwd("c:/repos/WL-Mbiol-Project"); 
 ## -------------------------------
 ## 0. Configuration
 ## -------------------------------
