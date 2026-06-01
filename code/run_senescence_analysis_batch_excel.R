@@ -10,9 +10,6 @@
 ## 4. distTraitCondR.R
 ## =========================================================
 
-### CH: Comments from Chrissy will be tagged with a triple comment symbol and "CH"
-### so that you can ctrl+F to find them (or use Edit->Find in Files to search all
-### files in this directory)
 
 rm(list = ls())
 

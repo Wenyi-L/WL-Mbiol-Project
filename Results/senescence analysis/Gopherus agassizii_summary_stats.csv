@@ -1,5 +1,0 @@
-"model","mean_lifespan","var_lifespan","skew_lifespan","mean_LRO","var_LRO","skew_LRO","species","sheet"
-"Senescence",5.5579942128192,81.8063878456852,7.3843866183029,2.05833109953819,206.04067893022,13.2347321229468,"Gopherus agassizii","Gopherus agassizii"
-"No-senescence",5.5579942128192,81.8063878456852,7.3843866183029,2.05833109953819,206.04067893022,13.2347321229468,"Gopherus agassizii","Gopherus agassizii"
-"No-actuarial/Yes-reproductive",5.5579942128192,81.8063878456852,7.3843866183029,2.05833109953819,206.04067893022,13.2347321229468,"Gopherus agassizii","Gopherus agassizii"
-"Yes-actuarial/No-reproductive",5.5579942128192,81.8063878456852,7.3843866183029,2.05833109953819,206.04067893022,13.2347321229468,"Gopherus agassizii","Gopherus agassizii"
